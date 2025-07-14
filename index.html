@@ -95,6 +95,29 @@
       .remove-btn:hover {
         background: #cc0000;
       }
+      .color-swatch {
+        width: 30px;
+        height: 30px;
+        display: inline-block;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+      }
+      .preview-canvas {
+        width: 50px;
+        height: 50px;
+        border: 1px solid #ddd;
+        image-rendering: pixelated;
+      }
+      .coord-input {
+        width: 50px;
+        padding: 2px;
+        text-align: center;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+      }
+      .sync-checkbox {
+        margin: 0;
+      }
     </style>
   </head>
   <body>
@@ -132,16 +155,26 @@
 
     <div class="controls">
       <button id="clearBtn">Clear Points</button>
+      <button id="randomBtn">Sample 10 Random Points</button>
     </div>
     <div class="table-wrapper">
       <table id="results">
         <thead>
           <tr>
             <th>#</th>
+            <th>Swatch Before</th>
             <th>Hex Before</th>
+            <th>Swatch After</th>
             <th>Hex After</th>
             <th>HSL Before</th>
             <th>HSL After</th>
+            <th>Preview Before</th>
+            <th>Preview After</th>
+            <th>X Before</th>
+            <th>Y Before</th>
+            <th>X After</th>
+            <th>Y After</th>
+            <th>Sync</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -252,10 +285,35 @@
       }
       const tbody = document.querySelector("#results tbody");
       
-      function addRow(pointId, hex1, hex2, hsl1, hsl2) {
+      function addRow(pointId, hex1, hex2, hsl1, hsl2, x1, y1, x2, y2) {
         const tr = document.createElement("tr");
         tr.setAttribute('data-point-id', pointId);
-        tr.innerHTML = `<td>${pointId}</td><td>${hex1}</td><td>${hex2}</td><td>${hsl1}</td><td>${hsl2}</td><td><button class="remove-btn" onclick="removePoint(${pointId})">Remove</button></td>`;
+        
+        // Create color swatches
+        const swatch1 = `<div class="color-swatch" style="background-color: ${hex1}"></div>`;
+        const swatch2 = `<div class="color-swatch" style="background-color: ${hex2}"></div>`;
+        
+        // Create preview canvases
+        const preview1 = createPreviewCanvas(0, x1, y1);
+        const preview2 = createPreviewCanvas(1, x2, y2);
+        
+        tr.innerHTML = `
+          <td>${pointId}</td>
+          <td>${swatch1}</td>
+          <td>${hex1}</td>
+          <td>${swatch2}</td>
+          <td>${hex2}</td>
+          <td>${hsl1}</td>
+          <td>${hsl2}</td>
+          <td>${preview1}</td>
+          <td>${preview2}</td>
+          <td><input type="number" class="coord-input" value="${Math.round(x1)}" onchange="updatePointCoord(${pointId}, 'x1', this.value)"></td>
+          <td><input type="number" class="coord-input" value="${Math.round(y1)}" onchange="updatePointCoord(${pointId}, 'y1', this.value)"></td>
+          <td><input type="number" class="coord-input" value="${Math.round(x2)}" onchange="updatePointCoord(${pointId}, 'x2', this.value)"></td>
+          <td><input type="number" class="coord-input" value="${Math.round(y2)}" onchange="updatePointCoord(${pointId}, 'y2', this.value)"></td>
+          <td><input type="checkbox" class="sync-checkbox" onchange="togglePointSync(${pointId}, this.checked)"></td>
+          <td><button class="remove-btn" onclick="removePoint(${pointId})">Remove</button></td>
+        `;
         tbody.appendChild(tr);
       }
       
@@ -285,9 +343,9 @@
         circle.setAttribute('cx', x);
         circle.setAttribute('cy', y);
         circle.setAttribute('r', '8');
-        circle.setAttribute('fill', 'red');
-        circle.setAttribute('stroke', 'white');
-        circle.setAttribute('stroke-width', '2');
+        circle.setAttribute('fill', 'none');
+        circle.setAttribute('stroke', 'red');
+        circle.setAttribute('stroke-width', '3');
         
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', x);
@@ -342,9 +400,39 @@
             if (svgIndex === 0) {
               point.x1 = newX;
               point.y1 = newY;
+              
+              // If synced, update the other canvas too
+              if (point.synced) {
+                point.x2 = newX;
+                point.y2 = newY;
+                const otherGroup = svgs[1].querySelector(`g[data-point-id="${pointId}"]`);
+                if (otherGroup) {
+                  const otherCircle = otherGroup.querySelector('circle');
+                  const otherText = otherGroup.querySelector('text');
+                  otherCircle.setAttribute('cx', newX);
+                  otherCircle.setAttribute('cy', newY);
+                  otherText.setAttribute('x', newX);
+                  otherText.setAttribute('y', newY);
+                }
+              }
             } else {
               point.x2 = newX;
               point.y2 = newY;
+              
+              // If synced, update the other canvas too
+              if (point.synced) {
+                point.x1 = newX;
+                point.y1 = newY;
+                const otherGroup = svgs[0].querySelector(`g[data-point-id="${pointId}"]`);
+                if (otherGroup) {
+                  const otherCircle = otherGroup.querySelector('circle');
+                  const otherText = otherGroup.querySelector('text');
+                  otherCircle.setAttribute('cx', newX);
+                  otherCircle.setAttribute('cy', newY);
+                  otherText.setAttribute('x', newX);
+                  otherText.setAttribute('y', newY);
+                }
+              }
             }
             updatePointColors(point);
           }
@@ -366,10 +454,26 @@
         const row = document.querySelector(`tr[data-point-id="${point.id}"]`);
         if (row) {
           const cells = row.getElementsByTagName('td');
-          cells[1].textContent = hex(c1[0], c1[1], c1[2]);
-          cells[2].textContent = hex(c2[0], c2[1], c2[2]);
-          cells[3].textContent = rgbToHsl(c1[0], c1[1], c1[2]);
-          cells[4].textContent = rgbToHsl(c2[0], c2[1], c2[2]);
+          const hex1 = hex(c1[0], c1[1], c1[2]);
+          const hex2 = hex(c2[0], c2[1], c2[2]);
+          
+          // Update swatches
+          cells[1].innerHTML = `<div class="color-swatch" style="background-color: ${hex1}"></div>`;
+          cells[2].textContent = hex1;
+          cells[3].innerHTML = `<div class="color-swatch" style="background-color: ${hex2}"></div>`;
+          cells[4].textContent = hex2;
+          cells[5].textContent = rgbToHsl(c1[0], c1[1], c1[2]);
+          cells[6].textContent = rgbToHsl(c2[0], c2[1], c2[2]);
+          
+          // Update previews
+          cells[7].innerHTML = createPreviewCanvas(0, point.x1, point.y1);
+          cells[8].innerHTML = createPreviewCanvas(1, point.x2, point.y2);
+          
+          // Update coordinates
+          cells[9].querySelector('input').value = Math.round(point.x1);
+          cells[10].querySelector('input').value = Math.round(point.y1);
+          cells[11].querySelector('input').value = Math.round(point.x2);
+          cells[12].querySelector('input').value = Math.round(point.y2);
         }
       }
       
@@ -386,7 +490,8 @@
           x1: x,
           y1: y,
           x2: x,
-          y2: y
+          y2: y,
+          synced: false
         };
         points.push(point);
         
@@ -403,7 +508,8 @@
           hex(c1[0], c1[1], c1[2]),
           hex(c2[0], c2[1], c2[2]),
           rgbToHsl(c1[0], c1[1], c1[2]),
-          rgbToHsl(c2[0], c2[1], c2[2])
+          rgbToHsl(c2[0], c2[1], c2[2]),
+          x, y, x, y
         );
       }
       canvases.forEach((c) => c.addEventListener("click", clickHandler));
@@ -459,7 +565,121 @@
         checkboxes[activeIndex].checked = true;
         checkboxes[1 - activeIndex].checked = false;
       }
+      
+      function createPreviewCanvas(canvasIndex, x, y) {
+        if (!images[canvasIndex]) return '';
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 10;
+        canvas.height = 10;
+        canvas.className = 'preview-canvas';
+        
+        const ctx = canvas.getContext('2d');
+        const sourceCanvas = canvases[canvasIndex];
+        
+        // Extract 10x10 pixel area centered on the point
+        const startX = Math.max(0, Math.floor(x - 5));
+        const startY = Math.max(0, Math.floor(y - 5));
+        const endX = Math.min(sourceCanvas.width, startX + 10);
+        const endY = Math.min(sourceCanvas.height, startY + 10);
+        
+        const imageData = sourceCanvas.getContext('2d').getImageData(startX, startY, endX - startX, endY - startY);
+        ctx.putImageData(imageData, 0, 0);
+        
+        return canvas.outerHTML;
+      }
+      
+      function updatePointCoord(pointId, coord, value) {
+        const point = points.find(p => p.id === pointId);
+        if (!point) return;
+        
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) return;
+        
+        point[coord] = numValue;
+        
+        // Update SVG dots
+        const isFirstCanvas = coord === 'x1' || coord === 'y1';
+        const svgIndex = isFirstCanvas ? 0 : 1;
+        const svg = svgs[svgIndex];
+        const dotGroup = svg.querySelector(`g[data-point-id="${pointId}"]`);
+        
+        if (dotGroup) {
+          const circle = dotGroup.querySelector('circle');
+          const text = dotGroup.querySelector('text');
+          
+          if (coord.endsWith('1')) {
+            circle.setAttribute('cx', point.x1);
+            circle.setAttribute('cy', point.y1);
+            text.setAttribute('x', point.x1);
+            text.setAttribute('y', point.y1);
+          } else {
+            circle.setAttribute('cx', point.x2);
+            circle.setAttribute('cy', point.y2);
+            text.setAttribute('x', point.x2);
+            text.setAttribute('y', point.y2);
+          }
+        }
+        
+        // Update colors and previews
+        updatePointColors(point);
+      }
+      
+      function togglePointSync(pointId, synced) {
+        const point = points.find(p => p.id === pointId);
+        if (!point) return;
+        
+        point.synced = synced;
+      }
+      
+      function sampleRandomPoints() {
+        if (!images[0] || !images[1]) {
+          alert('Please load both images first');
+          return;
+        }
+        
+        const width = canvases[0].width;
+        const height = canvases[0].height;
+        
+        for (let i = 0; i < 10; i++) {
+          const x = Math.floor(Math.random() * width);
+          const y = Math.floor(Math.random() * height);
+          
+          // Create new point
+          const pointId = pointIdCounter++;
+          const point = {
+            id: pointId,
+            x1: x,
+            y1: y,
+            x2: x,
+            y2: y,
+            synced: false
+          };
+          points.push(point);
+          
+          // Add dots to both SVG overlays
+          svgs.forEach(svg => {
+            createSVGDot(svg, x, y, pointId);
+          });
+          
+          // Get colors and add to table
+          const c1 = getColorAt(canvases[0], x, y);
+          const c2 = getColorAt(canvases[1], x, y);
+          addRow(
+            pointId,
+            hex(c1[0], c1[1], c1[2]),
+            hex(c2[0], c2[1], c2[2]),
+            rgbToHsl(c1[0], c1[1], c1[2]),
+            rgbToHsl(c2[0], c2[1], c2[2]),
+            x, y, x, y
+          );
+        }
+      }
+      
       document.addEventListener("paste", handlePaste);
+      
+      // Add event listener for random sampling button
+      document.getElementById('randomBtn').addEventListener('click', sampleRandomPoints);
     </script>
   </body>
 </html>
