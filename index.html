@@ -115,8 +115,17 @@
         border: 1px solid #ddd;
         border-radius: 3px;
       }
-      .sync-checkbox {
-        margin: 0;
+      .sync-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 12px;
+        border-radius: 3px;
+      }
+      .sync-btn:hover {
+        background: #45a049;
       }
     </style>
   </head>
@@ -204,6 +213,89 @@
       let pointIdCounter = 1;
       let draggedPoint = null;
       
+      // Persistence functions
+      function saveToStorage() {
+        const data = {
+          points: points,
+          pointIdCounter: pointIdCounter,
+          images: images.map((img, index) => {
+            if (!img) return null;
+            // Convert canvas to base64 data URL for persistence
+            const canvas = canvases[index];
+            return canvas.toDataURL('image/png');
+          })
+        };
+        localStorage.setItem('colorSamplerData', JSON.stringify(data));
+      }
+      
+      function loadFromStorage() {
+        const stored = localStorage.getItem('colorSamplerData');
+        if (!stored) return;
+        
+        try {
+          const data = JSON.parse(stored);
+          pointIdCounter = data.pointIdCounter || 1;
+          
+          // Load images
+          if (data.images) {
+            let loadedCount = 0;
+            const totalImages = data.images.filter(src => src).length;
+            
+            data.images.forEach((src, index) => {
+              if (src) {
+                const img = new Image();
+                img.onload = () => {
+                  drawImageToCanvas(img, canvases[index]);
+                  images[index] = img;
+                  loadedCount++;
+                  
+                  // After all images are loaded, restore points
+                  if (loadedCount === totalImages && data.points) {
+                    restorePoints(data.points);
+                  }
+                };
+                img.onerror = () => {
+                  console.error('Error loading image from storage for index:', index);
+                };
+                img.src = src;
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error loading from storage:', e);
+        }
+      }
+      
+      function restorePoints(savedPoints) {
+        points = savedPoints;
+        
+        // Clear existing table and SVG
+        tbody.innerHTML = '';
+        svgs.forEach(svg => svg.innerHTML = '');
+        
+        // Recreate points
+        points.forEach(point => {
+          // Add dots to both SVG overlays
+          svgs.forEach(svg => {
+            createSVGDot(svg, point.x1, point.y1, point.id);
+          });
+          
+          // Get colors and add to table
+          const c1 = getColorAt(canvases[0], point.x1, point.y1);
+          const c2 = getColorAt(canvases[1], point.x2, point.y2);
+          addRow(
+            point.id,
+            hex(c1[0], c1[1], c1[2]),
+            hex(c2[0], c2[1], c2[2]),
+            rgbToHsl(c1[0], c1[1], c1[2]),
+            rgbToHsl(c2[0], c2[1], c2[2]),
+            point.x1, point.y1, point.x2, point.y2
+          );
+          
+          // No need to set sync state for buttons
+        });
+      }
+      
       checkboxes[0].checked = true;
       checkboxes.forEach((cb, i) =>
         cb.addEventListener("change", () => {
@@ -219,6 +311,7 @@
         img.onload = () => {
           drawImageToCanvas(img, canvases[index]);
           images[index] = img;
+          saveToStorage();
         };
         img.src = URL.createObjectURL(file);
       }
@@ -297,6 +390,7 @@
         const preview1 = createPreviewCanvas(0, x1, y1);
         const preview2 = createPreviewCanvas(1, x2, y2);
         
+        // Create cells with innerHTML for most content
         tr.innerHTML = `
           <td>${pointId}</td>
           <td>${swatch1}</td>
@@ -305,16 +399,23 @@
           <td>${hex2}</td>
           <td>${hsl1}</td>
           <td>${hsl2}</td>
-          <td>${preview1}</td>
-          <td>${preview2}</td>
+          <td></td>
+          <td></td>
           <td><input type="number" class="coord-input" value="${Math.round(x1)}" onchange="updatePointCoord(${pointId}, 'x1', this.value)"></td>
           <td><input type="number" class="coord-input" value="${Math.round(y1)}" onchange="updatePointCoord(${pointId}, 'y1', this.value)"></td>
           <td><input type="number" class="coord-input" value="${Math.round(x2)}" onchange="updatePointCoord(${pointId}, 'x2', this.value)"></td>
           <td><input type="number" class="coord-input" value="${Math.round(y2)}" onchange="updatePointCoord(${pointId}, 'y2', this.value)"></td>
-          <td><input type="checkbox" class="sync-checkbox" onchange="togglePointSync(${pointId}, this.checked)"></td>
+          <td><button class="sync-btn" onclick="syncPoint(${pointId})">Sync</button></td>
           <td><button class="remove-btn" onclick="removePoint(${pointId})">Remove</button></td>
         `;
+        
+        // Insert the actual canvas elements into the preview cells
+        const cells = tr.getElementsByTagName('td');
+        cells[7].appendChild(preview1);
+        cells[8].appendChild(preview2);
+        
         tbody.appendChild(tr);
+        saveToStorage();
       }
       
       function removePoint(pointId) {
@@ -330,26 +431,44 @@
           const dotGroup = svg.querySelector(`g[data-point-id="${pointId}"]`);
           if (dotGroup) dotGroup.remove();
         });
+        
+        saveToStorage();
       }
       function getColorAt(canvas, x, y) {
         return canvas.getContext("2d").getImageData(x, y, 1, 1).data;
       }
+      function getDisplayCoordinates(canvas, canvasX, canvasY) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = rect.width / canvas.width;
+        const scaleY = rect.height / canvas.height;
+        
+        return {
+          x: canvasX * scaleX,
+          y: canvasY * scaleY
+        };
+      }
+      
       function createSVGDot(svg, x, y, pointId) {
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('data-point-id', pointId);
         g.setAttribute('class', 'draggable-dot');
         
+        // Get the canvas associated with this SVG
+        const svgIndex = svgs.indexOf(svg);
+        const canvas = canvases[svgIndex];
+        const displayCoords = getDisplayCoordinates(canvas, x, y);
+        
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', x);
-        circle.setAttribute('cy', y);
+        circle.setAttribute('cx', displayCoords.x);
+        circle.setAttribute('cy', displayCoords.y);
         circle.setAttribute('r', '8');
         circle.setAttribute('fill', 'none');
         circle.setAttribute('stroke', 'red');
         circle.setAttribute('stroke-width', '3');
         
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', x);
-        text.setAttribute('y', y);
+        text.setAttribute('x', displayCoords.x);
+        text.setAttribute('y', displayCoords.y);
         text.setAttribute('class', 'dot-label');
         text.textContent = pointId;
         
@@ -378,61 +497,33 @@
         document.addEventListener('mousemove', (e) => {
           if (!isDragging || draggedPoint !== pointId) return;
           
-          const deltaX = e.clientX - startX;
-          const deltaY = e.clientY - startY;
+          const svg = group.parentNode;
+          const svgIndex = svgs.indexOf(svg);
+          const canvas = canvases[svgIndex];
           
-          const currentX = parseFloat(circle.getAttribute('cx'));
-          const currentY = parseFloat(circle.getAttribute('cy'));
+          // Get scaled coordinates relative to the canvas
+          const coords = getScaledCoordinates(canvas, e.clientX, e.clientY);
+          const newX = coords.x;
+          const newY = coords.y;
           
-          const newX = currentX + deltaX;
-          const newY = currentY + deltaY;
-          
-          // Update position
-          circle.setAttribute('cx', newX);
-          circle.setAttribute('cy', newY);
-          text.setAttribute('x', newX);
-          text.setAttribute('y', newY);
+          // Convert canvas coordinates to display coordinates for SVG
+          const displayCoords = getDisplayCoordinates(canvas, newX, newY);
+          circle.setAttribute('cx', displayCoords.x);
+          circle.setAttribute('cy', displayCoords.y);
+          text.setAttribute('x', displayCoords.x);
+          text.setAttribute('y', displayCoords.y);
           
           // Update point in array
           const point = points.find(p => p.id === pointId);
           if (point) {
-            const svgIndex = svgs.indexOf(group.parentNode);
             if (svgIndex === 0) {
               point.x1 = newX;
               point.y1 = newY;
               
-              // If synced, update the other canvas too
-              if (point.synced) {
-                point.x2 = newX;
-                point.y2 = newY;
-                const otherGroup = svgs[1].querySelector(`g[data-point-id="${pointId}"]`);
-                if (otherGroup) {
-                  const otherCircle = otherGroup.querySelector('circle');
-                  const otherText = otherGroup.querySelector('text');
-                  otherCircle.setAttribute('cx', newX);
-                  otherCircle.setAttribute('cy', newY);
-                  otherText.setAttribute('x', newX);
-                  otherText.setAttribute('y', newY);
-                }
-              }
             } else {
               point.x2 = newX;
               point.y2 = newY;
               
-              // If synced, update the other canvas too
-              if (point.synced) {
-                point.x1 = newX;
-                point.y1 = newY;
-                const otherGroup = svgs[0].querySelector(`g[data-point-id="${pointId}"]`);
-                if (otherGroup) {
-                  const otherCircle = otherGroup.querySelector('circle');
-                  const otherText = otherGroup.querySelector('text');
-                  otherCircle.setAttribute('cx', newX);
-                  otherCircle.setAttribute('cy', newY);
-                  otherText.setAttribute('x', newX);
-                  otherText.setAttribute('y', newY);
-                }
-              }
             }
             updatePointColors(point);
           }
@@ -444,6 +535,7 @@
         document.addEventListener('mouseup', () => {
           isDragging = false;
           draggedPoint = null;
+          saveToStorage();
         });
       }
       
@@ -466,8 +558,10 @@
           cells[6].textContent = rgbToHsl(c2[0], c2[1], c2[2]);
           
           // Update previews
-          cells[7].innerHTML = createPreviewCanvas(0, point.x1, point.y1);
-          cells[8].innerHTML = createPreviewCanvas(1, point.x2, point.y2);
+          cells[7].innerHTML = '';
+          cells[8].innerHTML = '';
+          cells[7].appendChild(createPreviewCanvas(0, point.x1, point.y1));
+          cells[8].appendChild(createPreviewCanvas(1, point.x2, point.y2));
           
           // Update coordinates
           cells[9].querySelector('input').value = Math.round(point.x1);
@@ -477,11 +571,22 @@
         }
       }
       
+      function getScaledCoordinates(canvas, clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        return {
+          x: Math.round((clientX - rect.left) * scaleX),
+          y: Math.round((clientY - rect.top) * scaleY)
+        };
+      }
+      
       function clickHandler(e) {
         if (!images[0] || !images[1]) return;
-        const rect = this.getBoundingClientRect();
-        const x = Math.round(e.clientX - rect.left);
-        const y = Math.round(e.clientY - rect.top);
+        const coords = getScaledCoordinates(this, e.clientX, e.clientY);
+        const x = coords.x;
+        const y = coords.y;
         
         // Create new point
         const pointId = pointIdCounter++;
@@ -490,8 +595,7 @@
           x1: x,
           y1: y,
           x2: x,
-          y2: y,
-          synced: false
+          y2: y
         };
         points.push(point);
         
@@ -523,6 +627,7 @@
         images.forEach((img, i) => {
           if (img) drawImageToCanvas(img, canvases[i]);
         });
+        saveToStorage();
       };
       // Handle drag & drop
       const dropZone = document.getElementById("dropZone");
@@ -567,26 +672,34 @@
       }
       
       function createPreviewCanvas(canvasIndex, x, y) {
-        if (!images[canvasIndex]) return '';
+        const previewCanvas = document.createElement('canvas');
+        previewCanvas.width = 10;
+        previewCanvas.height = 10;
+        previewCanvas.className = 'preview-canvas';
         
-        const canvas = document.createElement('canvas');
-        canvas.width = 10;
-        canvas.height = 10;
-        canvas.className = 'preview-canvas';
+        if (!images[canvasIndex]) {
+          return previewCanvas;
+        }
         
-        const ctx = canvas.getContext('2d');
+        const ctx = previewCanvas.getContext('2d');
         const sourceCanvas = canvases[canvasIndex];
         
         // Extract 10x10 pixel area centered on the point
         const startX = Math.max(0, Math.floor(x - 5));
         const startY = Math.max(0, Math.floor(y - 5));
-        const endX = Math.min(sourceCanvas.width, startX + 10);
-        const endY = Math.min(sourceCanvas.height, startY + 10);
+        const width = Math.min(10, sourceCanvas.width - startX);
+        const height = Math.min(10, sourceCanvas.height - startY);
         
-        const imageData = sourceCanvas.getContext('2d').getImageData(startX, startY, endX - startX, endY - startY);
-        ctx.putImageData(imageData, 0, 0);
+        if (width > 0 && height > 0) {
+          try {
+            const imageData = sourceCanvas.getContext('2d').getImageData(startX, startY, width, height);
+            ctx.putImageData(imageData, 0, 0);
+          } catch (e) {
+            console.error('Error creating preview:', e);
+          }
+        }
         
-        return canvas.outerHTML;
+        return previewCanvas;
       }
       
       function updatePointCoord(pointId, coord, value) {
@@ -602,6 +715,7 @@
         const isFirstCanvas = coord === 'x1' || coord === 'y1';
         const svgIndex = isFirstCanvas ? 0 : 1;
         const svg = svgs[svgIndex];
+        const canvas = canvases[svgIndex];
         const dotGroup = svg.querySelector(`g[data-point-id="${pointId}"]`);
         
         if (dotGroup) {
@@ -609,27 +723,49 @@
           const text = dotGroup.querySelector('text');
           
           if (coord.endsWith('1')) {
-            circle.setAttribute('cx', point.x1);
-            circle.setAttribute('cy', point.y1);
-            text.setAttribute('x', point.x1);
-            text.setAttribute('y', point.y1);
+            const displayCoords = getDisplayCoordinates(canvas, point.x1, point.y1);
+            circle.setAttribute('cx', displayCoords.x);
+            circle.setAttribute('cy', displayCoords.y);
+            text.setAttribute('x', displayCoords.x);
+            text.setAttribute('y', displayCoords.y);
           } else {
-            circle.setAttribute('cx', point.x2);
-            circle.setAttribute('cy', point.y2);
-            text.setAttribute('x', point.x2);
-            text.setAttribute('y', point.y2);
+            const displayCoords = getDisplayCoordinates(canvas, point.x2, point.y2);
+            circle.setAttribute('cx', displayCoords.x);
+            circle.setAttribute('cy', displayCoords.y);
+            text.setAttribute('x', displayCoords.x);
+            text.setAttribute('y', displayCoords.y);
           }
         }
         
         // Update colors and previews
         updatePointColors(point);
+        saveToStorage();
       }
       
-      function togglePointSync(pointId, synced) {
+      function syncPoint(pointId) {
         const point = points.find(p => p.id === pointId);
         if (!point) return;
         
-        point.synced = synced;
+        // Force after coords to match before coords
+        point.x2 = point.x1;
+        point.y2 = point.y1;
+        
+        // Update the SVG dot on the second canvas
+        const svg2 = svgs[1];
+        const dotGroup = svg2.querySelector(`g[data-point-id="${pointId}"]`);
+        if (dotGroup) {
+          const circle = dotGroup.querySelector('circle');
+          const text = dotGroup.querySelector('text');
+          const displayCoords = getDisplayCoordinates(canvases[1], point.x2, point.y2);
+          circle.setAttribute('cx', displayCoords.x);
+          circle.setAttribute('cy', displayCoords.y);
+          text.setAttribute('x', displayCoords.x);
+          text.setAttribute('y', displayCoords.y);
+        }
+        
+        // Update colors and previews
+        updatePointColors(point);
+        saveToStorage();
       }
       
       function sampleRandomPoints() {
@@ -652,8 +788,7 @@
             x1: x,
             y1: y,
             x2: x,
-            y2: y,
-            synced: false
+            y2: y
           };
           points.push(point);
           
@@ -680,6 +815,11 @@
       
       // Add event listener for random sampling button
       document.getElementById('randomBtn').addEventListener('click', sampleRandomPoints);
+      
+      // Initialize from storage on page load
+      window.addEventListener('load', () => {
+        loadFromStorage();
+      });
     </script>
   </body>
 </html>
