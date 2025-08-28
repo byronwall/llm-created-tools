@@ -42,6 +42,27 @@
         font-size: 16px;
         font-weight: 600;
       }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .tab-btn {
+        appearance: none;
+        border: 1px solid #2b2d3a;
+        background: #0f1018;
+        color: var(--ink);
+        padding: 6px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .tab-btn.active {
+        background: linear-gradient(180deg, #1a2638, #121a28);
+        border-color: #2b3d59;
+        color: #dfe9ff;
+      }
       main {
         display: grid;
         grid-template-columns: 340px 1fr;
@@ -142,7 +163,7 @@
       }
       #stage-wrap {
         display: grid;
-        align-items: center;
+        align-items: start; /* align content to top */
         justify-items: center;
       }
       #stage {
@@ -153,6 +174,35 @@
         background: #0c0d16;
         border-radius: 16px;
         border: 1px solid #1a1c27;
+      }
+      #gridGallery {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      .thumb {
+        background: #0c0d16;
+        border-radius: 12px;
+        border: 1px solid #1a1c27;
+        padding: 6px;
+        display: grid;
+        gap: 6px;
+        transition: transform 0.12s ease;
+        cursor: pointer;
+      }
+      .thumb:hover {
+        transform: translateY(-2px);
+      }
+      .thumb svg {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16/9;
+        border-radius: 10px;
+        display: block;
+      }
+      .thumb .meta {
+        font-size: 12px;
+        color: var(--muted);
       }
       .help {
         color: var(--muted);
@@ -182,6 +232,10 @@
   <body>
     <header>
       <h1>Grid + Shapes + Gradients + Noise (SVG) — Generator & Explorer</h1>
+      <div class="tabs">
+        <button id="tabDetail" class="tab-btn active">Detail view</button>
+        <button id="tabGrid" class="tab-btn">Grid view</button>
+      </div>
     </header>
 
     <main>
@@ -367,53 +421,6 @@
           <textarea id="configOut" spellcheck="false"></textarea>
         </label>
 
-        <details>
-          <summary>Ideas to extend visuals (click)</summary>
-          <ul>
-            <li>
-              Voronoi or Lloyd-relaxed point cells (clipPaths), with gradient
-              fills per cell.
-            </li>
-            <li>
-              Superellipse / squircle tiles (<code class="inline"
-                >(|x/a|^n + |y/b|^n = 1)</code
-              >) for softer grids.
-            </li>
-            <li>
-              Isometric diamonds and axial skew with alternating z-index
-              illusions.
-            </li>
-            <li>
-              Halftone + ordered dithering overlays using
-              <code class="inline">&lt;pattern&gt;</code>.
-            </li>
-            <li>
-              Hue-field driven by Perlin/Turbulence baked into
-              <code class="inline">feColorMatrix</code> for chroma drift.
-            </li>
-            <li>
-              SVG blend modes (<code class="inline">mix-blend-mode</code>) for
-              multiply/screen banding on modern browsers.
-            </li>
-            <li>
-              Stroke-only optical patterns: moiré lines, concentric dash arrays
-              with <code class="inline">pathLength</code>.
-            </li>
-            <li>
-              Animated gradients + noise phase for subtle shimmer
-              (prefers-reduced-motion aware).
-            </li>
-            <li>
-              Shape grammars: per-cell glyph set (quarter, half, full circle;
-              bars; triangles) with Markov chains.
-            </li>
-            <li>
-              Parametric palettes (OKLCH ramps) with constant perceived
-              lightness.
-            </li>
-          </ul>
-        </details>
-
         <div class="help">
           Tip: everything is deterministic per <em>Seed</em>. Share links encode
           config in the URL hash.
@@ -428,6 +435,26 @@
           role="img"
           aria-label="Generated artwork"
         ></svg>
+      </section>
+
+      <section id="grid-wrap" class="panel" style="display: none">
+        <div
+          class="row"
+          style="
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+          "
+        >
+          <div class="chiprow">
+            <span class="chip">3×3 random gallery</span>
+            <span class="chip">Click a tile to focus</span>
+          </div>
+          <button id="btnRerollGrid" class="btn primary">
+            🎲 Generate 3×3
+          </button>
+        </div>
+        <div id="gridGallery"></div>
       </section>
     </main>
 
@@ -570,6 +597,10 @@
         stops.value = cfg.gradient.stops;
         noise.value = cfg.noise.opacity;
         freq.value = cfg.noise.freq;
+        if (cfg.noiseKind) {
+          const nk = document.querySelector("#noiseKind");
+          if (nk) nk.value = cfg.noiseKind;
+        }
         gridOverlay.value = cfg.overlay.grid;
         gridOpacity.value = cfg.overlay.gridOpacity;
         hotspot.value = cfg.overlay.hotspot;
@@ -650,7 +681,7 @@
       /* =========================
    Gradient builders
    ========================= */
-      function buildGradient(defs, id, kind, colors, rng) {
+      function buildGradient(defs, id, kind, colors, rng, nStops) {
         if (kind === "linear") {
           const g = el(SVGNS, "linearGradient", {
             id,
@@ -690,7 +721,7 @@
         return `url(#${id})`;
 
         function addStops(grad, cols, rng, jitter = false) {
-          const n = +stops.value || cols.length;
+          const n = nStops || cols.length;
           for (let i = 0; i < n; i++) {
             const t = i / (n - 1);
             const col =
@@ -710,16 +741,15 @@
    ========================= */
 
       // --- New: Multi-model SVG noise layer ---
-      function addNoiseLayer({ defs, svg, cfg, rng }) {
-        const id = "noiseF";
-        const kind =
-          document.querySelector("#noiseKind")?.value || "fractal-fine";
+      function addNoiseLayer({ defs, svg, cfg, rng, ids }) {
+        const id = ids?.noise || "noiseF";
+        const kind = cfg.noiseKind || "fractal-fine";
         const { w, h } = cfg.size;
 
         // Build filter or pattern depending on kind
         if (kind === "stipple") {
           // deterministic point pattern (tiny dots)
-          const patId = "stipplePat";
+          const patId = ids?.stipple || "stipplePat";
           const pat = el(SVGNS, "pattern", {
             id: patId,
             patternUnits: "userSpaceOnUse",
@@ -765,7 +795,7 @@
           height: "120%",
           filterUnits: "objectBoundingBox",
         });
-        let baseFreq = +freq.value || 0.85; // UI slider drives it
+        let baseFreq = cfg.noise.freq ?? 0.85; // use cfg
         let oct = 1;
         let turbType = "fractalNoise";
 
@@ -859,7 +889,7 @@
    Renderers
    ========================= */
       const renderers = {
-        base({ svg, defs, cfg, rng }) {
+        base({ svg, defs, cfg, rng, ids }) {
           const { w, h } = cfg.size;
           const pal = derivePalette(
             rng,
@@ -868,10 +898,11 @@
           );
           const gradFill = buildGradient(
             defs,
-            "gradBase",
+            ids.gradBase,
             cfg.gradient.kind,
             pal,
-            rng
+            rng,
+            cfg.gradient.stops
           );
 
           svg.appendChild(
@@ -888,7 +919,7 @@
 
           // optional hotspot…
           if (cfg.overlay.hotspot !== "none") {
-            const gId = "gradHot";
+            const gId = ids.hot;
             const hotG = el(SVGNS, "radialGradient", { id: gId });
             const c = choice(rng, pal);
             const where = (() => {
@@ -936,14 +967,14 @@
           return { palette: pal };
         },
 
-        gridOverlay({ svg, cfg, rng }) {
+        gridOverlay({ svg, cfg, rng, ids }) {
           const { w, h } = cfg.size;
           const { rows, cols, pad } = cfg.grid;
           const cellW = w / cols,
             cellH = h / rows;
 
           const g = el(SVGNS, "g", {
-            "clip-path": "url(#clipR)",
+            "clip-path": `url(#${ids.clip})`,
             opacity: cfg.overlay.gridOpacity,
           });
           for (let r = 0; r < rows; r++) {
@@ -979,11 +1010,11 @@
           svg.appendChild(g);
         },
 
-        pattern_arcs({ svg, cfg, rng, palette }) {
+        pattern_arcs({ svg, cfg, rng, palette, ids }) {
           const { w, h } = cfg.size;
           const g = el(SVGNS, "g", {
             opacity: cfg.pattern.opacity,
-            "clip-path": "url(#clipR)",
+            "clip-path": `url(#${ids.clip})`,
           });
           const cx = lerp(w * 0.2, w * 0.85, rng());
           const cy = lerp(h * 0.2, h * 0.85, rng());
@@ -1021,14 +1052,14 @@
           }
         },
 
-        pattern_quarters({ svg, cfg, rng, palette }) {
+        pattern_quarters({ svg, cfg, rng, palette, ids }) {
           const { w, h } = cfg.size;
           const { rows, cols, pad } = cfg.grid;
           const cellW = w / cols,
             cellH = h / rows;
           const g = el(SVGNS, "g", {
             opacity: cfg.pattern.opacity,
-            "clip-path": "url(#clipR)",
+            "clip-path": `url(#${ids.clip})`,
           });
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -1060,14 +1091,14 @@
           }
         },
 
-        pattern_circles({ svg, cfg, rng, palette }) {
+        pattern_circles({ svg, cfg, rng, palette, ids }) {
           const { w, h } = cfg.size;
           const { rows, cols, pad } = cfg.grid;
           const cellW = w / cols,
             cellH = h / rows;
           const g = el(SVGNS, "g", {
             opacity: cfg.pattern.opacity,
-            "clip-path": "url(#clipR)",
+            "clip-path": `url(#${ids.clip})`,
           });
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -1091,11 +1122,11 @@
           svg.appendChild(g);
         },
 
-        pattern_bands({ svg, cfg, rng, palette }) {
+        pattern_bands({ svg, cfg, rng, palette, ids }) {
           const { w, h } = cfg.size;
           const g = el(SVGNS, "g", {
             opacity: cfg.pattern.opacity,
-            "clip-path": "url(#clipR)",
+            "clip-path": `url(#${ids.clip})`,
           });
           const bands = randInt(rng, 5, 12);
           const sw = Math.max(14, Math.floor((w / bands) * 0.75));
@@ -1124,9 +1155,8 @@
       /* =========================
    Main render function
    ========================= */
-      function render(cfg) {
-        cLog("render() cfg", cfg);
-        const svg = document.querySelector("#stage");
+      function renderTo(svg, cfg) {
+        cLog("renderTo() cfg", cfg);
         svg.setAttribute("viewBox", `0 0 ${cfg.size.w} ${cfg.size.h}`);
         svg.setAttribute("width", cfg.size.w);
         svg.setAttribute("height", cfg.size.h);
@@ -1135,8 +1165,21 @@
         const defs = el(SVGNS, "defs");
         svg.appendChild(defs);
 
+        // unique ids per render to avoid collisions
+        const idPrefix =
+          "i" +
+          (Math.random().toString(36).slice(2, 8) +
+            hashStr(cfg.seed).toString(36));
+        const ids = {
+          clip: `${idPrefix}-clip`,
+          gradBase: `${idPrefix}-grad`,
+          hot: `${idPrefix}-hot`,
+          noise: `${idPrefix}-noise`,
+          stipple: `${idPrefix}-stip`,
+        };
+
         // master rounded clip
-        const clip = el(SVGNS, "clipPath", { id: "clipR" });
+        const clip = el(SVGNS, "clipPath", { id: ids.clip });
         clip.appendChild(
           el(SVGNS, "rect", {
             x: 0,
@@ -1150,15 +1193,15 @@
         defs.appendChild(clip);
 
         // everything goes inside this group
-        const scene = el(SVGNS, "g", { "clip-path": "url(#clipR)" });
+        const scene = el(SVGNS, "g", { "clip-path": `url(#${ids.clip})` });
         svg.appendChild(scene);
 
         // determinism
         const rng = mulberry32(hashStr(cfg.seed));
 
         // base gradient on rounded rect (shows the radius immediately)
-        const palInfo = renderers.base({ svg: scene, defs, cfg, rng }); // switched svg -> scene
-        renderers.gridOverlay({ svg: scene, cfg, rng });
+        const palInfo = renderers.base({ svg: scene, defs, cfg, rng, ids });
+        renderers.gridOverlay({ svg: scene, cfg, rng, ids });
 
         const kind = cfg.pattern.kind;
         if (kind !== "none") {
@@ -1168,13 +1211,25 @@
             circles: "pattern_circles",
             bands: "pattern_bands",
           }[kind];
-          renderers[fn]({ svg: scene, cfg, rng, palette: palInfo.palette });
+          renderers[fn]({
+            svg: scene,
+            cfg,
+            rng,
+            palette: palInfo.palette,
+            ids,
+          });
         }
 
         if (cfg.noise.opacity > 0) {
-          addNoiseLayer({ defs, svg: scene, cfg, rng });
+          addNoiseLayer({ defs, svg: scene, cfg, rng, ids });
         }
 
+        // Caller decides whether to update UI output
+      }
+
+      function render(cfg) {
+        const svg = document.querySelector("#stage");
+        renderTo(svg, cfg);
         updateConfigOut();
       }
 
@@ -1231,10 +1286,6 @@
         e.preventDefault();
 
         seed.value = "seed-" + Math.random().toString(36).slice(2, 8);
-
-        // size
-        w.value = randInt(Math.random, 600, 1600);
-        h.value = randInt(Math.random, 400, 1200);
 
         // grid
         cols.value = randInt(Math.random, 3, 32);
@@ -1343,6 +1394,129 @@
         setTimeout(() => (btnShare.textContent = "🔗 Share URL"), 900);
       });
 
+      /* =========================
+   Tabs + Grid view
+   ========================= */
+      const tabDetail = document.querySelector("#tabDetail");
+      const tabGrid = document.querySelector("#tabGrid");
+      const stageWrap = document.querySelector("#stage-wrap");
+      const gridWrap = document.querySelector("#grid-wrap");
+      const gridGallery = document.querySelector("#gridGallery");
+      const btnRerollGrid = document.querySelector("#btnRerollGrid");
+
+      function setTab(which) {
+        const isGrid = which === "grid";
+        tabDetail.classList.toggle("active", !isGrid);
+        tabGrid.classList.toggle("active", isGrid);
+        stageWrap.style.display = isGrid ? "none" : "";
+        gridWrap.style.display = isGrid ? "" : "none";
+      }
+      tabDetail.addEventListener("click", () => setTab("detail"));
+      tabGrid.addEventListener("click", () => setTab("grid"));
+
+      // Build a randomized config without mutating the UI controls
+      function randomConfig(baseSize) {
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const rint = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+        const seed = "seed-" + Math.random().toString(36).slice(2, 8);
+        const paletteKind = pick(Object.keys(PALETTES));
+        const paletteStrategy = pick(["fixed", "analogous", "triad", "mono"]);
+        const gradKind = pick(["linear", "radial", "sweepish"]);
+        const gridOverlayKind = pick(["none", "soft", "hard", "checker"]);
+        const hotspotKind = pick(["none", "corner", "center", "edge"]);
+        const patternKind = pick([
+          "none",
+          "arcs",
+          "quarters",
+          "circles",
+          "bands",
+        ]);
+        const noiseKinds = [
+          "fractal-fine",
+          "fractal-soft",
+          "paper-fiber",
+          "stipple",
+          "film-dust",
+        ];
+        const noiseKind = pick(noiseKinds);
+        return {
+          seed,
+          size: { w: baseSize.w, h: baseSize.h },
+          grid: {
+            cols: rint(3, 32),
+            rows: rint(3, 24),
+            pad: rint(0, 28),
+            radius: rint(0, 80),
+          },
+          paletteKind,
+          paletteStrategy,
+          gradient: { kind: gradKind, stops: rint(3, 10) },
+          noise: {
+            opacity: +(0.08 + Math.random() * 0.35).toFixed(2),
+            freq: +(0.5 + Math.random() * 1.2).toFixed(3),
+          },
+          noiseKind,
+          overlay: {
+            grid: gridOverlayKind,
+            gridOpacity: +(Math.random() * 0.45).toFixed(2),
+            hotspot: hotspotKind,
+          },
+          pattern: {
+            kind: patternKind,
+            opacity: +(Math.random() * 0.9).toFixed(2),
+          },
+        };
+      }
+
+      let gridConfigs = [];
+      function renderGrid() {
+        // thumbnail size
+        const thumbSize = { w: 480, h: 270 };
+        gridConfigs = Array.from({ length: 9 }, () => randomConfig(thumbSize));
+        gridGallery.innerHTML = "";
+        gridConfigs.forEach((cfg, i) => {
+          const wrap = document.createElement("div");
+          wrap.className = "thumb";
+          wrap.setAttribute("data-idx", String(i));
+          const svg = document.createElementNS(SVGNS, "svg");
+          svg.setAttribute("xmlns", SVGNS);
+          svg.setAttribute("role", "img");
+          svg.setAttribute("aria-label", "Generated thumbnail");
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `${cfg.paletteKind} • ${cfg.pattern.kind} • ${cfg.gradient.kind}`;
+          wrap.appendChild(svg);
+          wrap.appendChild(meta);
+          gridGallery.appendChild(wrap);
+          // Render into the thumbnail svg
+          renderTo(svg, cfg);
+        });
+      }
+
+      function focusFromGridIndex(idx) {
+        const cfg = gridConfigs[idx];
+        if (!cfg) return;
+        // Use current main size for detail view
+        const mainSize = { w: +w.value, h: +h.value };
+        const focusCfg = { ...cfg, size: mainSize };
+        setConfig(focusCfg);
+        // If auto-refresh off, still render once to reflect focus
+        render(currentConfig());
+        setTab("detail");
+      }
+
+      gridGallery.addEventListener("click", (e) => {
+        const target = e.target.closest(".thumb");
+        if (!target) return;
+        const idx = +target.getAttribute("data-idx");
+        focusFromGridIndex(idx);
+      });
+
+      btnRerollGrid.addEventListener("click", (e) => {
+        e.preventDefault();
+        renderGrid();
+      });
+
       // Load from URL hash if present
       (function boot() {
         cLog("boot()");
@@ -1353,6 +1527,8 @@
           }
         }
         render(currentConfig());
+        // Prepare initial grid
+        renderGrid();
       })();
     </script>
   </body>
