@@ -2,18 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>SVG text-anchor: text, tspan, textPath (clean version)</title>
+    <title>textPath: startOffset vs text-anchor — Small Multiples</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       :root {
         --bg: #0b1020;
         --ink: #e5e7eb;
-        --guide: #94a3b8;
-        --guide-strong: #64748b;
-        --start: #60a5fa;
-        --middle: #34d399;
-        --end: #f472b6;
+        --muted: #94a3b8;
+        --muted-2: #64748b;
         --path: #f59e0b;
+        --start: #60a5fa;
+        --mid: #34d399;
+        --end: #f472b6;
       }
       html,
       body {
@@ -24,11 +24,11 @@
           Arial;
       }
       header {
-        padding: 12px 16px;
+        padding: 14px 18px;
         border-bottom: 1px solid #111827;
       }
       header h1 {
-        margin: 0 0 2px 0;
+        margin: 0 0 4px;
         font-size: 16px;
       }
       header p {
@@ -36,278 +36,255 @@
         opacity: 0.85;
         font-size: 13px;
       }
+      .section {
+        padding: 18px;
+      }
+      .section h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #cbd5e1;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+      }
+      .cell {
+        background: #0e152c;
+        border: 1px solid #111827;
+        border-radius: 10px;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
+          0 6px 18px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+      }
+      .cell header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border: 0;
+        border-bottom: 1px solid #111827;
+        background: #0c1326;
+      }
+      .title {
+        font-size: 12px;
+        color: #cbd5e1;
+      }
+      .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #a3e635;
+        font-size: 11px;
+        opacity: 0.9;
+      }
       svg {
         display: block;
         width: 100%;
         height: auto;
-      }
-      .column-title {
-        font-size: 12px;
-        fill: #cbd5e1;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-      .chunk-title {
-        font-size: 14px;
-        font-weight: 600;
-        fill: #e2e8f0;
-      }
-      .label {
-        font-size: 12px;
-        fill: #cbd5e1;
-      }
-      .guide-line {
-        stroke: var(--guide);
-        stroke-width: 1;
-        stroke-dasharray: 4 4;
-      }
-      .guide-strong {
-        stroke: var(--guide-strong);
-        stroke-width: 2;
-        stroke-dasharray: 6 6;
-      }
-      .anchor-dot {
-        fill: var(--guide-strong);
-        stroke: var(--bg);
-        stroke-width: 2;
-      }
-      .start {
-        fill: var(--start);
-      }
-      .middle {
-        fill: var(--middle);
-      }
-      .end {
-        fill: var(--end);
+        background: #0a1021;
       }
       .winding {
         fill: none;
         stroke: var(--path);
         stroke-width: 3;
       }
+      .anchor-dot {
+        fill: var(--muted-2);
+        stroke: var(--bg);
+        stroke-width: 2;
+      }
+      .label {
+        font-size: 11px;
+        fill: #cbd5e1;
+      }
+      .start {
+        fill: var(--start);
+      }
+      .middle {
+        fill: var(--mid);
+      }
+      .end {
+        fill: var(--end);
+      }
+      .guide {
+        stroke: var(--muted);
+        stroke-width: 1;
+        stroke-dasharray: 3 5;
+      }
     </style>
   </head>
   <body>
     <header>
-      <h1>
-        SVG <code>text-anchor</code> on <code>&lt;text&gt;</code>,
-        <code>&lt;tspan&gt;</code>, and <code>&lt;textPath&gt;</code>
-      </h1>
+      <h1>SVG <code>textPath</code> — startOffset vs text-anchor</h1>
       <p>
-        Short labels + gentle path to keep things readable. Includes an example
-        tree:
-        <code
-          >&lt;text&gt;&lt;textPath&gt;&lt;tspan/&gt;&lt;tspan/&gt;&lt;/textPath&gt;&lt;/text&gt;</code
-        >.
+        Each small multiple reuses the same winding path, marks the anchor
+        point, and labels the setting. No <code>dy</code> is used.
       </p>
     </header>
 
-    <svg viewBox="0 0 1100 640" aria-labelledby="t d" role="img">
-      <title id="t">text-anchor demo (simplified)</title>
-      <desc id="d">
-        Three columns for text, tspan, and textPath; plus a second textPath with
-        nested tspans.
-      </desc>
+    <!-- Sections -->
+    <section class="section" id="offset-only">
+      <h2>StartOffset only (text-anchor=start)</h2>
+      <div class="grid"></div>
+    </section>
 
-      <!-- Column titles -->
-      <text class="column-title" x="150" y="40" text-anchor="middle">
-        text @ x=150
-      </text>
-      <text class="column-title" x="500" y="40" text-anchor="middle">
-        tspan @ x=500
-      </text>
-      <text class="column-title" x="850" y="40" text-anchor="middle">
-        textPath (startOffset=50%)
-      </text>
+    <section class="section" id="anchor-only">
+      <h2>Text-anchor only (startOffset=50%)</h2>
+      <div class="grid"></div>
+    </section>
 
-      <!-- 1) <text> -->
-      <line class="guide-line" x1="150" y1="60" x2="150" y2="300" />
-      <text
-        class="chunk-title"
-        x="150"
-        y="60"
-        text-anchor="middle"
-        dominant-baseline="hanging"
-      >
-        text
-      </text>
-      <circle class="anchor-dot" cx="150" cy="110" r="4" />
-      <circle class="anchor-dot" cx="150" cy="150" r="4" />
-      <circle class="anchor-dot" cx="150" cy="190" r="4" />
-      <text class="start" x="150" y="110" text-anchor="start">start</text>
-      <text class="middle" x="150" y="150" text-anchor="middle">middle</text>
-      <text class="end" x="150" y="190" text-anchor="end">end</text>
-      <text class="label" x="150" y="230" text-anchor="middle">
-        anchor line
-      </text>
-      <line class="guide-strong" x1="150" y1="235" x2="150" y2="295" />
-
-      <!-- 2) <tspan> -->
-      <line class="guide-line" x1="500" y1="60" x2="500" y2="300" />
-      <text
-        class="chunk-title"
-        x="500"
-        y="60"
-        text-anchor="middle"
-        dominant-baseline="hanging"
-      >
-        tspan
-      </text>
-      <text id="tspan-block" x="500" y="110">
-        <tspan class="start" x="500" dy="0" text-anchor="start">start</tspan>
-        <tspan class="middle" x="500" dy="40" text-anchor="middle">
-          middle
-        </tspan>
-        <tspan class="end" x="500" dy="40" text-anchor="end">end</tspan>
-      </text>
-      <circle class="anchor-dot" cx="500" cy="110" r="4" />
-      <circle class="anchor-dot" cx="500" cy="150" r="4" />
-      <circle class="anchor-dot" cx="500" cy="190" r="4" />
-      <text class="label" x="500" y="230" text-anchor="middle">
-        anchor line
-      </text>
-      <line class="guide-strong" x1="500" y1="235" x2="500" y2="295" />
-
-      <!-- 3) <textPath> with short labels -->
-      <text
-        class="chunk-title"
-        x="850"
-        y="60"
-        text-anchor="middle"
-        dominant-baseline="hanging"
-      >
-        textPath
-      </text>
-
-      <!-- Smoothed "winding" path (long but gentle; no tight loops near edges) -->
-      <path
-        id="winding"
-        class="winding"
-        d="M 660,360
-           C 720,300 800,420 870,360
-           S 1000,300 1040,360
-           S 920,440 850,380
-           S 740,320 690,360"
-      />
-
-      <!-- Anchor marker at 50% -->
-      <circle
-        id="tp-anchor"
-        class="anchor-dot"
-        r="5"
-        cx="-10"
-        cy="-10"
-      ></circle>
-      <text id="tp-anchor-label" class="label" x="-10" y="-10">
-        anchor @ 50%
-      </text>
-
-      <!-- Three short labels at the same startOffset -->
-      <text dy="-10">
-        <textPath
-          class="start"
-          href="#winding"
-          startOffset="50%"
-          text-anchor="start"
-        >
-          start
-        </textPath>
-      </text>
-      <text dy="18">
-        <textPath
-          class="middle"
-          href="#winding"
-          startOffset="50%"
-          text-anchor="middle"
-        >
-          middle
-        </textPath>
-      </text>
-      <text dy="46">
-        <textPath
-          class="end"
-          href="#winding"
-          startOffset="50%"
-          text-anchor="end"
-        >
-          end
-        </textPath>
-      </text>
-
-      <!-- 4) textPath with nested tspans (tree: <text><textPath><tspan/><tspan/></textPath></text>) -->
-      <text
-        class="chunk-title"
-        x="850"
-        y="420"
-        text-anchor="middle"
-        dominant-baseline="hanging"
-      >
-        textPath with &lt;tspan&gt;s
-      </text>
-      <path
-        id="winding-2"
-        class="winding"
-        d="M 640,470
-           C 720,430 780,520 860,480
-           S 990,430 1040,490"
-      />
-      <text y="0">
-        <!-- tree -->
-        <textPath
-          href="#winding-2"
-          startOffset="40%"
-          text-anchor="middle"
-          id="tp-with-tspans"
-        >
-          <tspan class="start">Hello</tspan>
-          <tspan dx="10" class="end">World</tspan>
-        </textPath>
-      </text>
-      <!-- visual aid for that anchor -->
-      <circle
-        id="tp2-anchor"
-        class="anchor-dot"
-        r="4"
-        cx="-10"
-        cy="-10"
-      ></circle>
-      <text id="tp2-anchor-label" class="label" x="-10" y="-10">
-        anchor @ 40%
-      </text>
-
-      <!-- Legend -->
-      <g transform="translate(24, 330)">
-        <text class="column-title" x="0" y="-16">Legend</text>
-        <circle class="anchor-dot" cx="6" cy="0" r="4"></circle>
-        <text class="label" x="18" y="4">Anchor point (x or startOffset)</text>
-        <rect x="0" y="18" width="12" height="12" fill="var(--start)" />
-        <text class="label" x="18" y="28">start</text>
-        <rect x="0" y="38" width="12" height="12" fill="var(--middle)" />
-        <text class="label" x="18" y="48">middle</text>
-        <rect x="0" y="58" width="12" height="12" fill="var(--end)" />
-        <text class="label" x="18" y="68">end</text>
-      </g>
-    </svg>
+    <section class="section" id="combos">
+      <h2>Combinations (startOffset × text-anchor)</h2>
+      <div class="grid"></div>
+    </section>
 
     <script>
-      function markAnchor(pathId, dotId, labelId, offsetPct) {
-        const path = document.getElementById(pathId);
-        const dot = document.getElementById(dotId);
-        const lab = document.getElementById(labelId);
-        if (!path || !dot || !lab) return;
-        const p = path.getPointAtLength(path.getTotalLength() * offsetPct);
-        dot.setAttribute("cx", p.x);
-        dot.setAttribute("cy", p.y);
-        lab.setAttribute("x", p.x + 10);
-        lab.setAttribute("y", p.y - 10);
-      }
-      requestAnimationFrame(() => {
-        markAnchor("winding", "tp-anchor", "tp-anchor-label", 0.5); // 50%
-        markAnchor("winding-2", "tp2-anchor", "tp2-anchor-label", 0.4); // 40%
+      // ---- Data sets ------------------------------------------------------------
+      const OFFSET_ONLY = ["0%", "25%", "50%", "75%", "100%"].map((o) => ({
+        startOffset: o,
+        anchor: "start",
+      }));
+      const ANCHOR_ONLY = ["start", "middle", "end"].map((a) => ({
+        startOffset: "50%",
+        anchor: a,
+      }));
+      const COMBOS = [];
+      ["0%", "25%", "50%", "75%"].forEach((o) => {
+        ["start", "middle", "end"].forEach((a) =>
+          COMBOS.push({ startOffset: o, anchor: a })
+        );
       });
+
+      // ---- Utilities ------------------------------------------------------------
+      let uid = 0;
+      const nextId = (prefix) => `${prefix}-${++uid}`;
+
+      function windingPathD() {
+        // Gentle S-curves across 280×120 area; stays away from edges to avoid crowding.
+        return `
+      M 20 80 C 60 40 110 110 158 71 S 230 40 228 59 S 200 110 156 118 S 80 60 27 110
+    `;
+      }
+
+      function makeCell(container, { startOffset, anchor }) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+
+        // header
+        const head = document.createElement("header");
+        const t = document.createElement("div");
+        t.className = "title";
+        t.textContent = "textPath";
+        const code = document.createElement("div");
+        code.className = "code";
+        code.textContent = `startOffset=${startOffset}, text-anchor=${anchor}`;
+        head.appendChild(t);
+        head.appendChild(code);
+        cell.appendChild(head);
+
+        // svg
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 300 160");
+
+        // path
+        const pathId = nextId("p");
+        const p = document.createElementNS(svgNS, "path");
+        p.setAttribute("id", pathId);
+        p.setAttribute("class", "winding");
+        p.setAttribute("d", windingPathD());
+        svg.appendChild(p);
+
+        // anchor dot + label (computed by length)
+        const dot = document.createElementNS(svgNS, "circle");
+        dot.setAttribute("class", "anchor-dot");
+        dot.setAttribute("r", "4");
+        dot.setAttribute("cx", "-10");
+        dot.setAttribute("cy", "-10");
+        svg.appendChild(dot);
+
+        const lab = document.createElementNS(svgNS, "text");
+        lab.setAttribute("class", "label");
+        lab.textContent = `${startOffset}`;
+        svg.appendChild(lab);
+
+        // textPath text (short to keep things legible)
+        const text = document.createElementNS(svgNS, "text");
+        // Place the <text> baseline via translate (no 'dy' anywhere)
+        text.setAttribute("transform", "translate(0,0)");
+
+        const textPath = document.createElementNS(svgNS, "textPath");
+        textPath.setAttribute("href", `#${pathId}`);
+        textPath.setAttribute("startOffset", startOffset);
+        textPath.setAttribute("text-anchor", anchor);
+        textPath.setAttribute(
+          "class",
+          anchor === "start" ? "start" : anchor === "middle" ? "middle" : "end"
+        );
+        textPath.textContent = "Anchor demo";
+        text.appendChild(textPath);
+        svg.appendChild(text);
+
+        // after first paint, compute anchor point from path length & startOffset
+        requestAnimationFrame(() => {
+          const len = p.getTotalLength();
+          const pct = parseStartOffset(startOffset);
+          const pt = p.getPointAtLength(len * pct);
+
+          dot.setAttribute("cx", pt.x);
+          dot.setAttribute("cy", pt.y);
+          lab.setAttribute("x", pt.x + 8);
+          lab.setAttribute("y", Math.max(12, pt.y - 8)); // keep label inside cell
+
+          console.log("Cell", {
+            startOffset,
+            anchor,
+            pathLength: Math.round(len),
+            anchorPoint: { x: Math.round(pt.x), y: Math.round(pt.y) },
+          });
+        });
+
+        container.appendChild(cell);
+        cell.appendChild(svg);
+      }
+
+      function parseStartOffset(so) {
+        if (typeof so === "string" && so.endsWith("%"))
+          return parseFloat(so) / 100;
+        const n = Number(so);
+        if (Number.isFinite(n)) return n; // treat as user-space length fraction (rare)
+        return 0; // default
+      }
+
+      // ---- Build all sections ---------------------------------------------------
+      const offsetOnlyGrid = document.querySelector("#offset-only .grid");
+      OFFSET_ONLY.forEach((cfg) => makeCell(offsetOnlyGrid, cfg));
+
+      const anchorOnlyGrid = document.querySelector("#anchor-only .grid");
+      ANCHOR_ONLY.forEach((cfg) => makeCell(anchorOnlyGrid, cfg));
+
+      const combosGrid = document.querySelector("#combos .grid");
+      COMBOS.forEach((cfg) => makeCell(combosGrid, cfg));
+
+      // Recompute anchors on resize (viewBox scales)
       window.addEventListener("resize", () => {
-        markAnchor("winding", "tp-anchor", "tp-anchor-label", 0.5);
-        markAnchor("winding-2", "tp2-anchor", "tp2-anchor-label", 0.4);
+        document.querySelectorAll(".cell").forEach((cell) => {
+          const p = cell.querySelector("path.winding");
+          const dot = cell.querySelector("circle.anchor-dot");
+          const lab = cell.querySelector("text.label");
+          const tp = cell.querySelector("textPath");
+          if (!p || !dot || !tp || !lab) return;
+
+          const len = p.getTotalLength();
+          const pct = parseStartOffset(tp.getAttribute("startOffset") || "0%");
+          const pt = p.getPointAtLength(len * pct);
+          dot.setAttribute("cx", pt.x);
+          dot.setAttribute("cy", pt.y);
+          lab.setAttribute("x", pt.x + 8);
+          lab.setAttribute("y", Math.max(12, pt.y - 8));
+        });
+        console.log("Resized: anchor points recomputed.");
       });
     </script>
   </body>
