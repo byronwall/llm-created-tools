@@ -222,7 +222,13 @@
           "class",
           anchor === "start" ? "start" : anchor === "middle" ? "middle" : "end"
         );
-        textPath.textContent = "Anchor demo";
+        // Create two tspans: <tspan>Anchor</tspan><tspan>Demo</tspan>
+        const tspan1 = document.createElementNS(svgNS, "tspan");
+        tspan1.textContent = "Anchor";
+        const tspan2 = document.createElementNS(svgNS, "tspan");
+        tspan2.textContent = "Demo";
+        textPath.appendChild(tspan1);
+        textPath.appendChild(tspan2);
         text.appendChild(textPath);
         svg.appendChild(text);
 
