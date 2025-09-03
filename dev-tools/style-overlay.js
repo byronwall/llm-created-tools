@@ -57,6 +57,18 @@
     return `${el.tagName.toLowerCase()}${id}${cls}`;
   };
 
+  // Returns a compact string of data attributes for the final node only.
+  // Focuses on data-scope and data-part, and omits empty/absent values.
+  const dataAttrsForFinalNode = (el) => {
+    if (!el || el.nodeType !== 1) return "";
+    const attrs = [];
+    const scope = el.getAttribute("data-scope");
+    const part = el.getAttribute("data-part");
+    if (scope) attrs.push(`data-scope="${scope}"`);
+    if (part) attrs.push(`data-part="${part}"`);
+    return attrs.join(" ");
+  };
+
   // ----- Temporary pointer-events override for picking -----
   const enablePointerEventsOverride = () => {
     if (state.pointerOverrideStyleEl) return;
@@ -322,32 +334,6 @@
     return container;
   };
 
-  // ----- DevTools helper -----
-  const openInInspector = (el) => {
-    // Try Chrome/Chromium's injected inspect() if available
-    try {
-      if (typeof window.inspect === "function") {
-        log("Opening DevTools inspector for:", el);
-        window.inspect(el);
-        return true;
-      }
-    } catch (e) {
-      err("inspect(el) failed:", e);
-    }
-    // Fallbacks: store a reference and guide the user
-    try {
-      // Expose a global so the user can run inspect(...) manually
-      window.__INLINE_EXPORT_LAST_INSPECT__ = el;
-      warn(
-        "DevTools inspect() not found. Open DevTools and run: inspect(window.__INLINE_EXPORT_LAST_INSPECT__)"
-      );
-      // Pause execution if DevTools are open, giving user a breakpoint near target
-      // eslint-disable-next-line no-debugger
-      inspect(el);
-    } catch {}
-    return false;
-  };
-
   // ----- Chooser -----
   const openChooser = (x, y) => {
     // Stop inspect listeners & overlay, but keep pointer-events override on while we compute the stack
@@ -391,6 +377,7 @@
           margin: "6px 0",
         });
 
+        const dataAttrText = dataAttrsForFinalNode(el);
         const selectBtn = $("button", { class: "inline-export-chooser-item" }, [
           document.createTextNode(labelFor(el) + " "),
           peNone
@@ -405,6 +392,24 @@
             { style: { opacity: "0.7", marginLeft: "6px" } },
             shortPath(el)
           ),
+          dataAttrText
+            ? $(
+                "span",
+                {
+                  style: {
+                    opacity: "0.8",
+                    marginLeft: "8px",
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                    background: "#f6f8fa",
+                    padding: "1px 4px",
+                    borderRadius: "4px",
+                    border: "1px solid #e5e7eb",
+                  },
+                },
+                `[${dataAttrText}]`
+              )
+            : null,
         ]);
         css(selectBtn, {
           flex: "1 1 auto",
@@ -433,36 +438,8 @@
           openExportView(el);
         });
 
-        const inspectBtn = $("button", { class: "inline-export-inspect" }, [
-          "Inspect",
-        ]);
-        css(inspectBtn, {
-          flex: "0 0 auto",
-          padding: "8px 10px",
-          border: "1px solid #ccc",
-          borderRadius: "6px",
-          background: "#f7f7f7",
-          cursor: "pointer",
-          fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-          whiteSpace: "nowrap",
-        });
-        inspectBtn.setAttribute(
-          "title",
-          "Open this element in Chrome DevTools"
-        );
-        inspectBtn.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          evt.preventDefault();
-          try {
-            positionOverlay(el);
-            openInInspector(el);
-          } catch (e) {
-            err("Inspector button failed:", e);
-          }
-        });
-
         row.appendChild(selectBtn);
-        row.appendChild(inspectBtn);
+
         return row;
       })
     );
@@ -671,6 +648,12 @@
       });
     }
 
+    const isEscape = k === "Escape" || c === "Escape";
+    if (isEscape) {
+      cleanup();
+      return;
+    }
+
     // F16 key to (re)start inspect overlay from any phase
     const isF16 = k.toUpperCase() === "F16" || c.toUpperCase() === "F16";
     if (isF16) {
@@ -718,24 +701,26 @@
     attachInspect();
   };
 
+  const cleanup = () => {
+    if (!state.active) return;
+    state.active = false;
+    state.phase = "idle";
+    detachInspect();
+    closeChooser();
+    closeExportView();
+    if (state._globalKeysAttached) {
+      document.removeEventListener("keydown", onKey, { capture: true });
+      state._globalKeysAttached = false;
+    }
+    log("Cleaned up.");
+    this.active = false;
+  };
+
   // Public API
   window.InlineExport = {
     active: true,
     restartInspect,
-    cleanup() {
-      if (!state.active) return;
-      state.active = false;
-      state.phase = "idle";
-      detachInspect();
-      closeChooser();
-      closeExportView();
-      if (state._globalKeysAttached) {
-        document.removeEventListener("keydown", onKey, { capture: true });
-        state._globalKeysAttached = false;
-      }
-      log("Cleaned up.");
-      this.active = false;
-    },
+    cleanup,
   };
 
   // Kickoff
