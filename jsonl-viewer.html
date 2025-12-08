@@ -75,6 +75,28 @@
       min-height: 0; /* allow children to manage their own scroll */
     }
 
+    .resizer {
+      width: 6px;
+      cursor: col-resize;
+      background: transparent;
+      position: relative;
+    }
+    .resizer::before {
+      content: '';
+      position: absolute;
+      left: 2px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #1f2937;
+      opacity: 0.7;
+    }
+    .resizer:hover::before,
+    .resizer.dragging::before {
+      background: #38bdf8;
+      opacity: 0.9;
+    }
+
     #sidebar {
       width: 250px;
       max-width: 40%;
@@ -351,21 +373,47 @@
 <body>
   <header>
     <h1>JSONL Log Viewer</h1>
-    <div id="drop-zone">
-      <span>Drop a .jsonl file here or click to select</span>
-      <input type="file" id="file-input" accept=".jsonl,.log,.txt,application/jsonl" />
+    <div style="display:flex; gap:0.5rem; align-items:center;">
+      <div id="drop-zone">
+        <span>Drop a .jsonl file here or click to select</span>
+        <input type="file" id="file-input" accept=".jsonl,.log,.txt,application/jsonl" />
+      </div>
+      <button id="folder-button" type="button" class="badge">Load folder…</button>
+      <input type="file" id="folder-input" webkitdirectory multiple style="display:none" accept=".jsonl,.log,.txt,application/jsonl" />
     </div>
   </header>
 
   <main>
-    <section id="sidebar">
+    <section id="file-sidebar" style="width:260px; max-width:60%; border-right:1px solid #1f2937; display:flex; flex-direction:column; min-height:0; overflow:hidden; background:#020617;">
+      <div class="panel-header" style="border-bottom:1px solid #1f2937;">
+        <span>Files</span>
+        <span id="file-total" class="badge">0 files</span>
+      </div>
+      <div style="padding:0.4rem 0.6rem; display:flex; gap:0.4rem; align-items:center;">
+        <input id="file-filter" type="text" placeholder="Filter folders / files…" aria-label="Filter files" style="flex:1; padding:0.35rem 0.5rem; border-radius:0.5rem; border:1px solid #111827; background:#0b1020; color:#e5e7eb; font-size:0.8rem;" />
+      </div>
+      <div id="file-tree-container" style="flex:1; min-height:0; overflow:auto;">
+        <ul id="file-tree-root" style="list-style:none; margin:0; padding:0;"></ul>
+      </div>
+    </section>
+    <div class="resizer" data-target="file-sidebar" data-side="right" title="Drag to resize"></div>
+    <section id="sidebar" style="flex-basis: 420px; min-width: 240px; max-width: 70%;">
       <div id="log-summary-header">
         <span>Logs</span>
         <span id="log-count" class="badge">0 entries</span>
       </div>
-      <input id="log-filter" type="text" placeholder="Quick filter by title…" aria-label="Filter logs" />
+      <div style="padding:0 0.75rem 0.5rem; display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+        <input id="log-filter" type="text" placeholder="Filter by title / file…" aria-label="Filter logs"
+               style="flex:1;" />
+        <label class="badge" style="cursor:pointer; display:flex; align-items:center; gap:0.35rem;">
+          <input id="flat-toggle" type="checkbox" />
+          <span>Flat list</span>
+        </label>
+      </div>
+      <div id="tree-container" style="display:none"></div>
       <ul id="log-list"></ul>
     </section>
+    <div class="resizer" data-target="sidebar" data-side="right" title="Drag to resize"></div>
 
     <section id="detail">
       <div id="detail-header">
@@ -401,11 +449,102 @@
 
   <script>
     (function () {
+      // --- Resizable sidebars setup ---
+      const mainEl = document.querySelector('main');
+      const fileSidebarEl = document.getElementById('file-sidebar');
+      const logsSidebarEl = document.getElementById('sidebar');
+      const detailEl = document.getElementById('detail');
+      const resizers = Array.from(document.querySelectorAll('.resizer'));
+
+      const LS_KEYS = {
+        fileSidebarWidth: 'jsonl_viewer_file_sidebar_width',
+        logsSidebarWidth: 'jsonl_viewer_logs_sidebar_width',
+      };
+
+      function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+      }
+
+      function applyInitialSizes() {
+        const fs = Number(localStorage.getItem(LS_KEYS.fileSidebarWidth) || 260);
+        const ls = Number(localStorage.getItem(LS_KEYS.logsSidebarWidth) || 420);
+        fileSidebarEl.style.width = fs + 'px';
+        logsSidebarEl.style.flexBasis = ls + 'px';
+      }
+
+      applyInitialSizes();
+
+      resizers.forEach((rz) => {
+        let startX = 0;
+        let startWidth = 0;
+        let targetEl = null;
+        let key = null;
+
+        function onMouseMove(e) {
+          const dx = e.clientX - startX;
+          const side = rz.dataset.side || 'right';
+          let newWidth = side === 'right' ? startWidth + dx : startWidth - dx;
+          const min = 220;
+          const max = Math.floor(mainEl.clientWidth * 0.7);
+          newWidth = clamp(newWidth, min, max);
+
+          if (key === LS_KEYS.fileSidebarWidth) {
+            targetEl.style.width = newWidth + 'px';
+          } else {
+            // logs sidebar: use flex-basis so it plays nicely with flex layouts
+            targetEl.style.flexBasis = newWidth + 'px';
+          }
+        }
+
+        function onMouseUp() {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          rz.classList.remove('dragging');
+          // Persist
+          let current;
+          if (key === LS_KEYS.fileSidebarWidth) {
+            current = parseInt(targetEl.style.width || '260', 10);
+          } else {
+            current = parseInt(targetEl.style.flexBasis || '420', 10);
+          }
+          try {
+            localStorage.setItem(key, String(current));
+          } catch {}
+        }
+
+        rz.addEventListener('mousedown', (e) => {
+          const targetId = rz.dataset.target;
+          targetEl = document.getElementById(targetId);
+          if (!targetEl) return;
+          key = targetId === 'file-sidebar' ? LS_KEYS.fileSidebarWidth : LS_KEYS.logsSidebarWidth;
+
+          startX = e.clientX;
+          // Infer starting width based on style
+          if (key === LS_KEYS.fileSidebarWidth) {
+            startWidth = parseInt(targetEl.style.width || targetEl.getBoundingClientRect().width, 10);
+          } else {
+            const basis = targetEl.style.flexBasis;
+            startWidth = parseInt(basis || targetEl.getBoundingClientRect().width, 10);
+          }
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+          rz.classList.add('dragging');
+        });
+      });
+
       const dropZone = document.getElementById('drop-zone');
       const fileInput = document.getElementById('file-input');
+      const folderButton = document.getElementById('folder-button');
+      const folderInput = document.getElementById('folder-input');
       const logList = document.getElementById('log-list');
       const logCount = document.getElementById('log-count');
       const logFilter = document.getElementById('log-filter');
+      const flatToggle = document.getElementById('flat-toggle');
+      const treeRoot = document.getElementById('file-tree-root');
+      const treeContainer = document.getElementById('file-tree-container');
+      const fileFilter = document.getElementById('file-filter');
+      const fileTotal = document.getElementById('file-total');
       const detailTitle = document.getElementById('detail-title');
       const detailMeta = document.getElementById('detail-meta');
       const rawJsonEl = document.getElementById('raw-json');
@@ -416,6 +555,9 @@
       let filteredLogs = [];
       let filterQuery = '';
       let selectedIndex = -1;
+      let fileIndex = []; // [{path, name, file}]
+      let useFlatList = true; // right sidebar shows flat logs for selected file
+      let currentFilePath = null; // selected file path
 
       console.log('[JSONL Viewer] Initialized');
 
@@ -480,12 +622,38 @@
 
       function renderList() {
         clearList();
-        const source = filterQuery ? filteredLogs : logs;
+        // Only show logs when a file is selected
+        if (!currentFilePath) {
+          const placeholder = document.createElement('li');
+          placeholder.className = 'log-item';
+          const title = document.createElement('div');
+          title.className = 'log-item-title';
+          title.textContent = 'Select a file to view logs';
+          const meta = document.createElement('div');
+          meta.className = 'log-item-meta';
+          const hint = document.createElement('span');
+          hint.className = 'hint';
+          hint.textContent = 'No file selected';
+          meta.appendChild(hint);
+          placeholder.appendChild(title);
+          placeholder.appendChild(meta);
+          logList.appendChild(placeholder);
+          logCount.textContent = '0 entries';
+          logList.style.display = 'block';
+          treeContainer.style.display = 'block';
+          return;
+        }
+
+        const base = logs.filter((en) => en && en.__sourcePath === currentFilePath);
+        const source = filterQuery ? filteredLogs : base;
+
         source.forEach((entry, index) => {
           const li = createListItem(entry, index);
           logList.appendChild(li);
         });
         logCount.textContent = (source.length) + (source.length === 1 ? ' entry' : ' entries');
+        logList.style.display = 'block';
+        treeContainer.style.display = 'block';
       }
 
       function selectLog(index) {
@@ -539,12 +707,15 @@
 
       function applyFilter(query) {
         filterQuery = query.trim().toLowerCase();
+        const base = currentFilePath
+          ? logs.filter((en) => en && en.__sourcePath === currentFilePath)
+          : logs;
         if (!filterQuery) {
-          filteredLogs = [];
+          filteredLogs = base;
           renderList();
           return;
         }
-        filteredLogs = logs
+        filteredLogs = base
           .map((entry, idx) => ({ entry, idx }))
           .filter(({ entry }) => getPreview(entry).toLowerCase().includes(filterQuery))
           .map(({ entry }) => entry);
@@ -662,44 +833,71 @@
         return { entries, errors };
       }
 
+      async function loadFiles(files) {
+        if (!files || !files.length) {
+          console.log('[JSONL Viewer] No files passed to loadFiles');
+          return;
+        }
+
+        console.log('[JSONL Viewer] Loading', files.length, 'file(s)');
+
+        logs = [];
+        filteredLogs = [];
+        filterQuery = '';
+        logFilter.value = '';
+        fileIndex = [];
+
+        const allEntries = [];
+        const allErrors = [];
+
+        for (const file of files) {
+          const rel = file.webkitRelativePath || file.name;
+          fileIndex.push({ path: rel, name: file.name, file });
+          const text = await file.text();
+          const { entries, errors } = parseJsonl(text);
+          // annotate entries with source info
+          entries.forEach((e) => {
+            if (e && typeof e === 'object') {
+              e.__sourcePath = rel;
+              e.__sourceFile = file.name;
+            }
+          });
+          allEntries.push(...entries);
+          if (errors.length) {
+            allErrors.push({ file: rel, errors });
+          }
+        }
+
+        logs = allEntries;
+        buildTree(fileIndex);
+        currentFilePath = null;
+        renderList();
+
+        if (logs.length === 0) {
+          detailTitle.textContent = 'No log entries found';
+          detailMeta.textContent = 'The folder was read, but no JSONL lines were found.';
+          rawJsonEl.textContent = '/* No entries */';
+          structuredEl.innerHTML = 'No entries.';
+        }
+
+        if (allErrors.length > 0) {
+          const flatErrorCount = allErrors.reduce((sum, f) => sum + f.errors.length, 0);
+          const errorSummary = `Warning: ${flatErrorCount} line(s) could not be parsed across ${allErrors.length} file(s).`;
+          detailMeta.textContent += ' • ' + errorSummary;
+          console.warn('[JSONL Viewer] Parse errors:', allErrors);
+        }
+      }
+
       function loadFile(file) {
         if (!file) return;
 
         console.log('[JSONL Viewer] Loading file:', file.name, file.size, 'bytes');
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const text = String(evt.target.result || '');
-          const { entries, errors } = parseJsonl(text);
-
-          logs = entries;
-          filteredLogs = [];
-          filterQuery = '';
-          logFilter.value = '';
-          renderList();
-
-          if (logs.length > 0) {
-            selectLog(0);
-          } else {
-            detailTitle.textContent = 'No log entries found';
-            detailMeta.textContent = 'The file was read, but contained no JSON lines.';
-            rawJsonEl.textContent = '/* No entries */';
-            structuredEl.innerHTML = 'No entries.';
-          }
-
-          if (errors.length > 0) {
-            const errorSummary = 'Warning: ' + errors.length + ' line(s) could not be parsed.';
-            detailMeta.textContent += ' • ' + errorSummary;
-            console.warn('[JSONL Viewer] Parse errors:', errors);
-          }
-        };
-
-        reader.onerror = (evt) => {
-          console.error('[JSONL Viewer] File read error:', evt);
+        // Delegate to multi-file path for consistency
+        loadFiles([file]).catch((err) => {
+          console.error('[JSONL Viewer] Error reading file:', err);
           detailMeta.textContent = 'Error reading file.';
-        };
-
-        reader.readAsText(file);
+        });
       }
 
       dropZone.addEventListener('click', () => {
@@ -710,6 +908,17 @@
       fileInput.addEventListener('change', (event) => {
         const file = event.target.files && event.target.files[0];
         loadFile(file);
+      });
+
+      // Folder picker wiring
+      folderButton.addEventListener('click', () => {
+        console.log('[JSONL Viewer] Folder button clicked');
+        folderInput.click();
+      });
+      folderInput.addEventListener('change', (event) => {
+        const files = Array.from(event.target.files || []);
+        const jsonlFiles = files.filter((f) => /\.(jsonl|log|txt)$/i.test(f.name));
+        loadFiles(jsonlFiles);
       });
 
       dropZone.addEventListener('dragover', (event) => {
@@ -725,8 +934,15 @@
       dropZone.addEventListener('drop', (event) => {
         event.preventDefault();
         dropZone.classList.remove('dragover');
-        const file = event.dataTransfer.files && event.dataTransfer.files[0];
-        loadFile(file);
+        const files = Array.from(event.dataTransfer.files || []);
+        // If a folder is dropped (webkitRelativePath available), treat as multi-file
+        if (files.length > 1 || (files[0] && files[0].webkitRelativePath)) {
+          const jsonlFiles = files.filter((f) => /\.(jsonl|log|txt)$/i.test(f.name));
+          loadFiles(jsonlFiles);
+        } else {
+          const file = files[0];
+          loadFile(file);
+        }
       });
 
       // Page-wide drag & drop
@@ -735,8 +951,14 @@
       });
       document.addEventListener('drop', (event) => {
         event.preventDefault();
-        const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
-        if (file) loadFile(file);
+        const files = Array.from((event.dataTransfer && event.dataTransfer.files) || []);
+        if (!files.length) return;
+        if (files.length > 1 || (files[0] && files[0].webkitRelativePath)) {
+          const jsonlFiles = files.filter((f) => /\.(jsonl|log|txt)$/i.test(f.name));
+          loadFiles(jsonlFiles);
+        } else {
+          loadFile(files[0]);
+        }
       });
 
       // Filter input with simple debounce
@@ -745,6 +967,189 @@
         const val = e.target.value;
         if (filterTimer) clearTimeout(filterTimer);
         filterTimer = setTimeout(() => applyFilter(val), 120);
+      });
+
+      // Flat list toggle now always true; keep checkbox for UX but disable toggling
+      flatToggle.addEventListener('change', (e) => {
+        e.target.checked = true;
+      });
+
+      // Tree building and interactions
+      function buildTree(files) {
+        // files: [{path, name, file}]
+        treeRoot.innerHTML = '';
+        // Build nested object structure
+        const root = {};
+        files.forEach(({ path, name }) => {
+          const parts = path.split('/');
+          let node = root;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const isFile = i === parts.length - 1;
+            if (!node[part]) node[part] = isFile ? { __file: true, name } : {};
+            node = node[part];
+          }
+        });
+
+        // Precompute counts per file
+        const counts = {};
+        logs.forEach((en) => {
+          const p = en && en.__sourcePath;
+          if (p) counts[p] = (counts[p] || 0) + 1;
+        });
+        fileTotal.textContent = Object.keys(counts).length + (Object.keys(counts).length === 1 ? ' file' : ' files');
+
+        function createFolderLi(label) {
+          const li = document.createElement('li');
+          li.style.padding = '0.25rem 0.5rem';
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.gap = '0.4rem';
+          const toggle = document.createElement('span');
+          toggle.textContent = '▸';
+          toggle.style.cursor = 'pointer';
+          toggle.style.color = '#9ca3af';
+          const nameEl = document.createElement('span');
+          nameEl.textContent = label;
+          nameEl.style.color = '#e5e7eb';
+          row.appendChild(toggle);
+          row.appendChild(nameEl);
+          const childrenUl = document.createElement('ul');
+          childrenUl.style.listStyle = 'none';
+          childrenUl.style.margin = '0';
+          childrenUl.style.paddingLeft = '1rem';
+          childrenUl.style.display = 'none';
+          row.addEventListener('click', () => {
+            const open = childrenUl.style.display !== 'none';
+            childrenUl.style.display = open ? 'none' : 'block';
+            toggle.textContent = open ? '▸' : '▾';
+          });
+          li.appendChild(row);
+          li.appendChild(childrenUl);
+          return { li, childrenUl };
+        }
+
+        function createFileLi(path) {
+          const li = document.createElement('li');
+          li.style.padding = '0.25rem 0.5rem';
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.gap = '0.4rem';
+          const toggle = document.createElement('span');
+          toggle.textContent = '▸';
+          toggle.style.cursor = 'pointer';
+          toggle.style.color = '#9ca3af';
+          const nameEl = document.createElement('span');
+          nameEl.textContent = path.split('/').pop();
+          nameEl.style.color = '#e5e7eb';
+          nameEl.style.cursor = 'pointer';
+          const countBadge = document.createElement('span');
+          countBadge.className = 'badge';
+          const c = counts[path] || 0;
+          countBadge.textContent = c + (c === 1 ? ' entry' : ' entries');
+          const childrenUl = document.createElement('ul');
+          childrenUl.style.listStyle = 'none';
+          childrenUl.style.margin = '0';
+          childrenUl.style.paddingLeft = '1rem';
+          childrenUl.style.display = 'none';
+
+          // Clicking filename loads just that file into flat list for selection
+          nameEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentFilePath = path;
+            filteredLogs = logs.filter((en) => en && en.__sourcePath === path);
+            filterQuery = '';
+            logFilter.value = '';
+            renderList();
+            if (filteredLogs.length) selectLog(0);
+          });
+
+          // Expand to preview first N lines under the file
+          row.addEventListener('click', () => {
+            const open = childrenUl.style.display !== 'none';
+            if (open) {
+              childrenUl.style.display = 'none';
+              toggle.textContent = '▸';
+              return;
+            }
+            childrenUl.style.display = 'block';
+            toggle.textContent = '▾';
+            if (!childrenUl.hasChildNodes()) {
+              const entries = logs.filter((en) => en && en.__sourcePath === path);
+              const limit = 200;
+              entries.slice(0, limit).forEach((entry, idx) => {
+                const eli = document.createElement('li');
+                eli.style.padding = '0.25rem 0';
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                const title = document.createElement('span');
+                title.textContent = getPreview(entry);
+                title.className = 'faded';
+                const idxBadge = document.createElement('span');
+                idxBadge.textContent = '#' + idx;
+                idxBadge.className = 'badge badge-idx';
+                row.appendChild(title);
+                row.appendChild(idxBadge);
+                eli.appendChild(row);
+                eli.addEventListener('click', (ev) => {
+                  ev.stopPropagation();
+                  // select entry within filtered subset
+                  currentFilePath = path;
+                  filteredLogs = entries;
+                  renderList();
+                  selectLog(idx);
+                });
+                childrenUl.appendChild(eli);
+              });
+              if (entries.length > limit) {
+                const more = document.createElement('div');
+                more.className = 'hint';
+                more.textContent = `Showing first ${limit} entries…`;
+                childrenUl.appendChild(more);
+              }
+            }
+          });
+
+          row.appendChild(toggle);
+          row.appendChild(nameEl);
+          row.appendChild(countBadge);
+          li.appendChild(row);
+          li.appendChild(childrenUl);
+          return li;
+        }
+
+        function walk(node, ul, prefix) {
+          const keys = Object.keys(node).sort((a, b) => a.localeCompare(b));
+          keys.forEach((k) => {
+            const v = node[k];
+            const full = prefix ? prefix + '/' + k : k;
+            if (v && v.__file) {
+              ul.appendChild(createFileLi(full));
+            } else {
+              const { li, childrenUl } = createFolderLi(k);
+              ul.appendChild(li);
+              walk(v, childrenUl, full);
+            }
+          });
+        }
+
+        walk(root, treeRoot, '');
+      }
+
+      // File filter (left sidebar): filters visible nodes by name
+      let fileFilterTimer = null;
+      fileFilter.addEventListener('input', (e) => {
+        const q = String(e.target.value || '').trim().toLowerCase();
+        if (fileFilterTimer) clearTimeout(fileFilterTimer);
+        fileFilterTimer = setTimeout(() => {
+          Array.from(treeRoot.querySelectorAll('li')).forEach((li) => {
+            const txt = (li.textContent || '').toLowerCase();
+            li.style.display = q ? (txt.includes(q) ? '' : 'none') : '';
+          });
+        }, 120);
       });
     })();
   </script>
