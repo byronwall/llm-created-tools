@@ -219,7 +219,7 @@
     #detail-content {
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 0.75rem;
       padding: 0.75rem;
       min-height: 0;
@@ -421,23 +421,16 @@
           <div id="detail-title" class="faded">No log selected</div>
           <div id="detail-meta" class="hint">Load a JSONL file to begin.</div>
         </div>
+        <button id="view-toggle" type="button" class="badge" title="Toggle RAW/STRUCTURED">Show Raw</button>
       </div>
       <div id="detail-content">
         <div class="panel">
           <div class="panel-header">
-            <span>Raw JSON</span>
-            <span class="hint">Pretty-printed</span>
+            <span id="panel-title">Structured View</span>
+            <span id="panel-hint" class="hint">Nested key/value</span>
           </div>
           <div class="panel-body">
-            <pre id="raw-json">/* Waiting for a log entry... */</pre>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header">
-            <span>Structured View</span>
-            <span class="hint">Nested key/value</span>
-          </div>
-          <div class="panel-body">
+            <pre id="raw-json" style="display:none">/* Waiting for a log entry... */</pre>
             <div id="structured-view" class="hint">
               Multiline strings will appear in highlighted blocks here.
             </div>
@@ -549,6 +542,9 @@
       const detailMeta = document.getElementById('detail-meta');
       const rawJsonEl = document.getElementById('raw-json');
       const structuredEl = document.getElementById('structured-view');
+      const viewToggleBtn = document.getElementById('view-toggle');
+      const panelTitleEl = document.getElementById('panel-title');
+      const panelHintEl = document.getElementById('panel-hint');
 
       /** @type {any[]} */
       let logs = [];
@@ -558,6 +554,7 @@
       let fileIndex = []; // [{path, name, file}]
       let useFlatList = true; // right sidebar shows flat logs for selected file
       let currentFilePath = null; // selected file path
+      let viewMode = 'structured'; // 'structured' | 'raw'
 
       console.log('[JSONL Viewer] Initialized');
 
@@ -691,7 +688,26 @@
 
         structuredEl.innerHTML = '';
         structuredEl.appendChild(renderValue(entry));
+
+        applyViewMode();
       }
+      function applyViewMode() {
+        const isStructured = viewMode === 'structured';
+        rawJsonEl.style.display = isStructured ? 'none' : '';
+        structuredEl.style.display = isStructured ? '' : 'none';
+        panelTitleEl.textContent = isStructured ? 'Structured View' : 'Raw JSON';
+        panelHintEl.textContent = isStructured ? 'Nested key/value' : 'Pretty-printed';
+        viewToggleBtn.textContent = isStructured ? 'Show Raw' : 'Show Structured';
+      }
+
+      // Initialize default view
+      applyViewMode();
+
+      // Toggle button wiring
+      viewToggleBtn.addEventListener('click', () => {
+        viewMode = viewMode === 'structured' ? 'raw' : 'structured';
+        applyViewMode();
+      });
 
       function getPreview(entry) {
         if (entry && typeof entry === 'object') {
@@ -1037,10 +1053,6 @@
           row.style.display = 'flex';
           row.style.alignItems = 'center';
           row.style.gap = '0.4rem';
-          const toggle = document.createElement('span');
-          toggle.textContent = '▸';
-          toggle.style.cursor = 'pointer';
-          toggle.style.color = '#9ca3af';
           const nameEl = document.createElement('span');
           nameEl.textContent = path.split('/').pop();
           nameEl.style.color = '#e5e7eb';
@@ -1049,11 +1061,6 @@
           countBadge.className = 'badge';
           const c = counts[path] || 0;
           countBadge.textContent = c + (c === 1 ? ' entry' : ' entries');
-          const childrenUl = document.createElement('ul');
-          childrenUl.style.listStyle = 'none';
-          childrenUl.style.margin = '0';
-          childrenUl.style.paddingLeft = '1rem';
-          childrenUl.style.display = 'none';
 
           // Clicking filename loads just that file into flat list for selection
           nameEl.addEventListener('click', (e) => {
@@ -1066,58 +1073,9 @@
             if (filteredLogs.length) selectLog(0);
           });
 
-          // Expand to preview first N lines under the file
-          row.addEventListener('click', () => {
-            const open = childrenUl.style.display !== 'none';
-            if (open) {
-              childrenUl.style.display = 'none';
-              toggle.textContent = '▸';
-              return;
-            }
-            childrenUl.style.display = 'block';
-            toggle.textContent = '▾';
-            if (!childrenUl.hasChildNodes()) {
-              const entries = logs.filter((en) => en && en.__sourcePath === path);
-              const limit = 200;
-              entries.slice(0, limit).forEach((entry, idx) => {
-                const eli = document.createElement('li');
-                eli.style.padding = '0.25rem 0';
-                const row = document.createElement('div');
-                row.style.display = 'flex';
-                row.style.justifyContent = 'space-between';
-                const title = document.createElement('span');
-                title.textContent = getPreview(entry);
-                title.className = 'faded';
-                const idxBadge = document.createElement('span');
-                idxBadge.textContent = '#' + idx;
-                idxBadge.className = 'badge badge-idx';
-                row.appendChild(title);
-                row.appendChild(idxBadge);
-                eli.appendChild(row);
-                eli.addEventListener('click', (ev) => {
-                  ev.stopPropagation();
-                  // select entry within filtered subset
-                  currentFilePath = path;
-                  filteredLogs = entries;
-                  renderList();
-                  selectLog(idx);
-                });
-                childrenUl.appendChild(eli);
-              });
-              if (entries.length > limit) {
-                const more = document.createElement('div');
-                more.className = 'hint';
-                more.textContent = `Showing first ${limit} entries…`;
-                childrenUl.appendChild(more);
-              }
-            }
-          });
-
-          row.appendChild(toggle);
           row.appendChild(nameEl);
           row.appendChild(countBadge);
           li.appendChild(row);
-          li.appendChild(childrenUl);
           return li;
         }
 
