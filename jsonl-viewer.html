@@ -728,7 +728,11 @@
       }
 
       function selectLog(index) {
-        const source = filterQuery ? filteredLogs : logs;
+        // Use the same source list as renderList() to keep indices aligned
+        const base = currentFilePath
+          ? logs.filter((en) => en && en.__sourcePath === currentFilePath)
+          : logs;
+        const source = filterQuery ? filteredLogs : base;
         if (index < 0 || index >= source.length) {
           console.warn('[JSONL Viewer] Invalid index selected:', index);
           return;
@@ -875,7 +879,9 @@
           const table = document.createElement('table');
           table.className = 'kv-table';
 
-          Object.keys(value).forEach((key) => {
+          // Exclude special/internal fields (e.g., __sourceFile, __sourcePath)
+          const keys = Object.keys(value).filter((k) => !(k.startsWith('__')));
+          keys.forEach((key) => {
             const tr = document.createElement('tr');
             const tdKey = document.createElement('td');
             tdKey.className = 'key';
