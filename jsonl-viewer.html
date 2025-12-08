@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JSONL Log Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+
+    header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #1f2937;
+      background: linear-gradient(90deg, #020617, #111827);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+
+    #drop-zone {
+      border: 1px dashed #4b5563;
+      border-radius: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+      background: #030712;
+    }
+
+    #drop-zone.dragover {
+      border-color: #38bdf8;
+      background: #020617;
+    }
+
+    #drop-zone span {
+      color: #9ca3af;
+    }
+
+    #file-input {
+      display: none;
+    }
+
+    main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #sidebar {
+      width: 250px;
+      max-width: 40%;
+      border-right: 1px solid #1f2937;
+      display: flex;
+      flex-direction: column;
+      background: #020617;
+    }
+
+    #log-summary-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #log-count {
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+
+    #log-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .log-item {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #111827;
+      cursor: pointer;
+      font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      background: transparent;
+      transition: background 0.1s ease;
+    }
+
+    .log-item:hover {
+      background: #020617;
+    }
+
+    .log-item.selected {
+      background: #0f172a;
+      border-left: 3px solid #38bdf8;
+      padding-left: 0.6rem;
+    }
+
+    .log-item-title {
+      font-weight: 500;
+      color: #e5e7eb;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-item-meta {
+      font-size: 0.7rem;
+      color: #9ca3af;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    #detail {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: radial-gradient(circle at top left, #111827, #020617 60%);
+    }
+
+    #detail-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    #detail-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+
+    #detail-meta {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    #detail-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 0.75rem;
+      padding: 0.75rem;
+      min-height: 0;
+    }
+
+    @media (max-width: 800px) {
+      main {
+        flex-direction: column;
+      }
+
+      #sidebar {
+        width: 100%;
+        max-width: 100%;
+        max-height: 40vh;
+      }
+
+      #detail-content {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .panel {
+      border-radius: 0.75rem;
+      border: 1px solid #111827;
+      background: #020617;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 0.4rem 0.6rem;
+      border-bottom: 1px solid #111827;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-body {
+      padding: 0.4rem 0.6rem;
+      overflow: auto;
+      font-size: 0.8rem;
+    }
+
+    pre {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.75rem;
+      background: #020617;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #111827;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .multiline {
+      background: #020617;
+      padding: 0.25rem 0.4rem;
+      border-radius: 0.4rem;
+      border: 1px solid #111827;
+      margin: 0.2rem 0;
+    }
+
+    table.kv-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.8rem;
+    }
+
+    table.kv-table tr > td {
+      border-bottom: 1px solid #111827;
+      vertical-align: top;
+      padding: 0.25rem 0.35rem;
+    }
+
+    table.kv-table tr:last-child > td {
+      border-bottom: none;
+    }
+
+    table.kv-table td.key {
+      width: 30%;
+      max-width: 30%;
+      font-weight: 500;
+      color: #f9fafb;
+      white-space: nowrap;
+    }
+
+    table.kv-table td.value {
+      width: 70%;
+      max-width: 70%;
+    }
+
+    .badge {
+      border-radius: 9999px;
+      border: 1px solid #1f2937;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.7rem;
+      color: #9ca3af;
+    }
+
+    .badge-idx {
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .error {
+      color: #fca5a5;
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+    }
+
+    .faded {
+      color: #4b5563;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>JSONL Log Viewer</h1>
+    <div id="drop-zone">
+      <span>Drop a .jsonl file here or click to select</span>
+      <input type="file" id="file-input" accept=".jsonl,.log,.txt,application/jsonl" />
+    </div>
+  </header>
+
+  <main>
+    <section id="sidebar">
+      <div id="log-summary-header">
+        <span>Logs</span>
+        <span id="log-count" class="badge">0 entries</span>
+      </div>
+      <ul id="log-list"></ul>
+    </section>
+
+    <section id="detail">
+      <div id="detail-header">
+        <div>
+          <div id="detail-title" class="faded">No log selected</div>
+          <div id="detail-meta" class="hint">Load a JSONL file to begin.</div>
+        </div>
+      </div>
+      <div id="detail-content">
+        <div class="panel">
+          <div class="panel-header">
+            <span>Raw JSON</span>
+            <span class="hint">Pretty-printed</span>
+          </div>
+          <div class="panel-body">
+            <pre id="raw-json">/* Waiting for a log entry... */</pre>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span>Structured View</span>
+            <span class="hint">Nested key/value</span>
+          </div>
+          <div class="panel-body">
+            <div id="structured-view" class="hint">
+              Multiline strings will appear in highlighted blocks here.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const dropZone = document.getElementById('drop-zone');
+      const fileInput = document.getElementById('file-input');
+      const logList = document.getElementById('log-list');
+      const logCount = document.getElementById('log-count');
+      const detailTitle = document.getElementById('detail-title');
+      const detailMeta = document.getElementById('detail-meta');
+      const rawJsonEl = document.getElementById('raw-json');
+      const structuredEl = document.getElementById('structured-view');
+
+      /** @type {any[]} */
+      let logs = [];
+      let selectedIndex = -1;
+
+      console.log('[JSONL Viewer] Initialized');
+
+      function formatError(msg) {
+        return '<div class="error">' + msg + '</div>';
+      }
+
+      function updateLogCount() {
+        logCount.textContent = logs.length + (logs.length === 1 ? ' entry' : ' entries');
+        console.log('[JSONL Viewer] Log count updated:', logs.length);
+      }
+
+      function clearList() {
+        logList.innerHTML = '';
+        selectedIndex = -1;
+        console.log('[JSONL Viewer] Log list cleared');
+      }
+
+      function createListItem(entry, index) {
+        const li = document.createElement('li');
+        li.className = 'log-item';
+        li.dataset.index = String(index);
+
+        const title = document.createElement('div');
+        title.className = 'log-item-title';
+
+        const metaRow = document.createElement('div');
+        metaRow.className = 'log-item-meta';
+
+        const idxSpan = document.createElement('span');
+        idxSpan.textContent = '#' + index;
+        idxSpan.className = 'badge badge-idx';
+
+        const previewSpan = document.createElement('span');
+        previewSpan.className = 'faded';
+
+        let preview = '';
+        if (entry && typeof entry === 'object') {
+          const keys = Object.keys(entry);
+          if (keys.includes('message')) {
+            preview = String(entry.message);
+          } else if (keys.includes('msg')) {
+            preview = String(entry.msg);
+          } else if (keys.includes('event')) {
+            preview = String(entry.event);
+          } else {
+            preview = keys.slice(0, 3).join(', ');
+          }
+        } else {
+          preview = String(entry);
+        }
+
+        if (preview.length > 60) {
+          preview = preview.slice(0, 57) + '…';
+        }
+
+        title.textContent = preview || '(empty)';
+
+        let tsGuess = null;
+        if (entry && typeof entry === 'object') {
+          tsGuess = entry.timestamp || entry.time || entry.ts || null;
+        }
+
+        const tsSpan = document.createElement('span');
+        tsSpan.textContent = tsGuess ? String(tsGuess) : '';
+        tsSpan.className = 'faded';
+        metaRow.appendChild(idxSpan);
+        metaRow.appendChild(tsSpan);
+
+        li.appendChild(title);
+        li.appendChild(metaRow);
+
+        li.addEventListener('click', () => {
+          console.log('[JSONL Viewer] Log item clicked:', index);
+          selectLog(index);
+        });
+
+        return li;
+      }
+
+      function renderList() {
+        clearList();
+        logs.forEach((entry, index) => {
+          const li = createListItem(entry, index);
+          logList.appendChild(li);
+        });
+        updateLogCount();
+      }
+
+      function selectLog(index) {
+        if (index < 0 || index >= logs.length) {
+          console.warn('[JSONL Viewer] Invalid index selected:', index);
+          return;
+        }
+
+        selectedIndex = index;
+
+        Array.from(logList.children).forEach((li) => {
+          li.classList.toggle('selected', Number(li.dataset.index) === index);
+        });
+
+        const entry = logs[index];
+
+        detailTitle.textContent = 'Entry #' + index;
+        const extraMeta = [];
+        if (entry && typeof entry === 'object') {
+          const ts = entry.timestamp || entry.time || entry.ts;
+          if (ts) {
+            extraMeta.push('timestamp: ' + ts);
+          }
+        }
+        extraMeta.push('type: ' + (typeof entry));
+        detailMeta.textContent = extraMeta.join(' • ');
+
+        try {
+          rawJsonEl.textContent = JSON.stringify(entry, null, 2);
+        } catch (err) {
+          console.error('[JSONL Viewer] Error stringifying JSON:', err);
+          rawJsonEl.textContent = 'Error stringifying JSON: ' + err;
+        }
+
+        structuredEl.innerHTML = '';
+        structuredEl.appendChild(renderValue(entry));
+      }
+
+      function renderValue(value) {
+        console.log('[JSONL Viewer] Rendering value of type:', typeof value);
+
+        if (value === null || value === undefined) {
+          const span = document.createElement('span');
+          span.className = 'faded';
+          span.textContent = String(value);
+          return span;
+        }
+
+        if (typeof value === 'string') {
+          if (value.includes('\n')) {
+            const pre = document.createElement('pre');
+            pre.className = 'multiline';
+            pre.textContent = value;
+            return pre;
+          }
+
+          const span = document.createElement('span');
+          span.textContent = value;
+          return span;
+        }
+
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          const span = document.createElement('span');
+          span.textContent = String(value);
+          return span;
+        }
+
+        if (Array.isArray(value)) {
+          const wrapper = document.createElement('div');
+          const info = document.createElement('div');
+          info.className = 'hint';
+          info.textContent = 'Array[' + value.length + ']';
+          wrapper.appendChild(info);
+
+          const table = document.createElement('table');
+          table.className = 'kv-table';
+
+          value.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            const tdKey = document.createElement('td');
+            tdKey.className = 'key';
+            tdKey.textContent = '[' + idx + ']';
+
+            const tdVal = document.createElement('td');
+            tdVal.className = 'value';
+            tdVal.appendChild(renderValue(item));
+
+            tr.appendChild(tdKey);
+            tr.appendChild(tdVal);
+            table.appendChild(tr);
+          });
+
+          wrapper.appendChild(table);
+          return wrapper;
+        }
+
+        if (typeof value === 'object') {
+          const wrapper = document.createElement('div');
+          const table = document.createElement('table');
+          table.className = 'kv-table';
+
+          Object.keys(value).forEach((key) => {
+            const tr = document.createElement('tr');
+            const tdKey = document.createElement('td');
+            tdKey.className = 'key';
+            tdKey.textContent = key;
+
+            const tdVal = document.createElement('td');
+            tdVal.className = 'value';
+            tdVal.appendChild(renderValue(value[key]));
+
+            tr.appendChild(tdKey);
+            tr.appendChild(tdVal);
+            table.appendChild(tr);
+          });
+
+          wrapper.appendChild(table);
+          return wrapper;
+        }
+
+        const span = document.createElement('span');
+        span.textContent = String(value);
+        return span;
+      }
+
+      function parseJsonl(text) {
+        console.log('[JSONL Viewer] Parsing JSONL text');
+        const lines = text.split(/\r?\n/);
+        const entries = [];
+        const errors = [];
+
+        lines.forEach((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(trimmed);
+            entries.push(parsed);
+          } catch (err) {
+            console.error('[JSONL Viewer] Error parsing line', idx, err);
+            errors.push({ line: idx + 1, error: String(err), content: trimmed });
+          }
+        });
+
+        return { entries, errors };
+      }
+
+      function loadFile(file) {
+        if (!file) return;
+
+        console.log('[JSONL Viewer] Loading file:', file.name, file.size, 'bytes');
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const text = String(evt.target.result || '');
+          const { entries, errors } = parseJsonl(text);
+
+          logs = entries;
+          renderList();
+
+          if (logs.length > 0) {
+            selectLog(0);
+          } else {
+            detailTitle.textContent = 'No log entries found';
+            detailMeta.textContent = 'The file was read, but contained no JSON lines.';
+            rawJsonEl.textContent = '/* No entries */';
+            structuredEl.innerHTML = 'No entries.';
+          }
+
+          if (errors.length > 0) {
+            const errorSummary = 'Warning: ' + errors.length + ' line(s) could not be parsed.';
+            detailMeta.textContent += ' • ' + errorSummary;
+            console.warn('[JSONL Viewer] Parse errors:', errors);
+          }
+        };
+
+        reader.onerror = (evt) => {
+          console.error('[JSONL Viewer] File read error:', evt);
+          detailMeta.textContent = 'Error reading file.';
+        };
+
+        reader.readAsText(file);
+      }
+
+      dropZone.addEventListener('click', () => {
+        console.log('[JSONL Viewer] Drop-zone clicked');
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', (event) => {
+        const file = event.target.files && event.target.files[0];
+        loadFile(file);
+      });
+
+      dropZone.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        dropZone.classList.add('dragover');
+      });
+
+      dropZone.addEventListener('dragleave', (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('dragover');
+      });
+
+      dropZone.addEventListener('drop', (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('dragover');
+        const file = event.dataTransfer.files && event.dataTransfer.files[0];
+        loadFile(file);
+      });
+    })();
+  </script>
+</body>
+</html>
