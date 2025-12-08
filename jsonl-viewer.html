@@ -18,7 +18,8 @@
       margin: 0;
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
       background: #0f172a;
       color: #e5e7eb;
     }
@@ -71,7 +72,7 @@
     main {
       display: flex;
       flex: 1;
-      min-height: 0;
+      min-height: 0; /* allow children to manage their own scroll */
     }
 
     #sidebar {
@@ -80,7 +81,24 @@
       border-right: 1px solid #1f2937;
       display: flex;
       flex-direction: column;
+      min-height: 0; /* prevent sidebar from forcing page scroll */
+      overflow: hidden; /* confine scroll to internal list */
       background: #020617;
+    }
+
+    #log-filter {
+      width: 100%;
+      margin: 0.5rem 0.75rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #111827;
+      background: #0b1020;
+      color: #e5e7eb;
+      font-size: 0.8rem;
+    }
+
+    #log-filter::placeholder {
+      color: #6b7280;
     }
 
     #log-summary-header {
@@ -105,8 +123,9 @@
       list-style: none;
       margin: 0;
       padding: 0;
-      overflow-y: auto;
+      overflow-y: auto; /* scroll inside sidebar */
       flex: 1;
+      min-height: 0;
     }
 
     .log-item {
@@ -265,6 +284,28 @@
       border-bottom: none;
     }
 
+    /* Subtle striping for readability */
+    table.kv-table tr:nth-child(odd) {
+      background-color: rgba(2, 6, 23, 0.35); /* very subtle in dark */
+    }
+    table.kv-table tr:nth-child(even) {
+      background-color: rgba(17, 24, 39, 0.35);
+    }
+
+    /* Increase contrast slightly for nested tables to show grouping */
+    td.value table.kv-table tr:nth-child(odd) {
+      background-color: rgba(30, 58, 138, 0.25);
+    }
+    td.value table.kv-table tr:nth-child(even) {
+      background-color: rgba(2, 132, 199, 0.18);
+    }
+
+    /* Keep cell backgrounds transparent so striping shows across row */
+    table.kv-table td.key,
+    table.kv-table td.value {
+      background: transparent;
+    }
+
     table.kv-table td.key {
       width: 30%;
       max-width: 30%;
@@ -322,6 +363,7 @@
         <span>Logs</span>
         <span id="log-count" class="badge">0 entries</span>
       </div>
+      <input id="log-filter" type="text" placeholder="Quick filter by title…" aria-label="Filter logs" />
       <ul id="log-list"></ul>
     </section>
 
@@ -363,6 +405,7 @@
       const fileInput = document.getElementById('file-input');
       const logList = document.getElementById('log-list');
       const logCount = document.getElementById('log-count');
+      const logFilter = document.getElementById('log-filter');
       const detailTitle = document.getElementById('detail-title');
       const detailMeta = document.getElementById('detail-meta');
       const rawJsonEl = document.getElementById('raw-json');
@@ -370,6 +413,8 @@
 
       /** @type {any[]} */
       let logs = [];
+      let filteredLogs = [];
+      let filterQuery = '';
       let selectedIndex = -1;
 
       console.log('[JSONL Viewer] Initialized');
@@ -407,27 +452,9 @@
         const previewSpan = document.createElement('span');
         previewSpan.className = 'faded';
 
-        let preview = '';
-        if (entry && typeof entry === 'object') {
-          const keys = Object.keys(entry);
-          if (keys.includes('message')) {
-            preview = String(entry.message);
-          } else if (keys.includes('msg')) {
-            preview = String(entry.msg);
-          } else if (keys.includes('event')) {
-            preview = String(entry.event);
-          } else {
-            preview = keys.slice(0, 3).join(', ');
-          }
-        } else {
-          preview = String(entry);
-        }
-
-        if (preview.length > 60) {
-          preview = preview.slice(0, 57) + '…';
-        }
-
-        title.textContent = preview || '(empty)';
+        const previewFull = getPreview(entry);
+        const previewShort = previewFull.length > 60 ? (previewFull.slice(0, 57) + '…') : previewFull;
+        title.textContent = previewShort || '(empty)';
 
         let tsGuess = null;
         if (entry && typeof entry === 'object') {
@@ -453,15 +480,17 @@
 
       function renderList() {
         clearList();
-        logs.forEach((entry, index) => {
+        const source = filterQuery ? filteredLogs : logs;
+        source.forEach((entry, index) => {
           const li = createListItem(entry, index);
           logList.appendChild(li);
         });
-        updateLogCount();
+        logCount.textContent = (source.length) + (source.length === 1 ? ' entry' : ' entries');
       }
 
       function selectLog(index) {
-        if (index < 0 || index >= logs.length) {
+        const source = filterQuery ? filteredLogs : logs;
+        if (index < 0 || index >= source.length) {
           console.warn('[JSONL Viewer] Invalid index selected:', index);
           return;
         }
@@ -472,7 +501,7 @@
           li.classList.toggle('selected', Number(li.dataset.index) === index);
         });
 
-        const entry = logs[index];
+        const entry = source[index];
 
         detailTitle.textContent = 'Entry #' + index;
         const extraMeta = [];
@@ -494,6 +523,32 @@
 
         structuredEl.innerHTML = '';
         structuredEl.appendChild(renderValue(entry));
+      }
+
+      function getPreview(entry) {
+        if (entry && typeof entry === 'object') {
+          const keys = Object.keys(entry);
+          if (keys.includes('title')) return String(entry.title);
+          if (keys.includes('message')) return String(entry.message);
+          if (keys.includes('msg')) return String(entry.msg);
+          if (keys.includes('event')) return String(entry.event);
+          return keys.slice(0, 3).join(', ');
+        }
+        return String(entry || '');
+      }
+
+      function applyFilter(query) {
+        filterQuery = query.trim().toLowerCase();
+        if (!filterQuery) {
+          filteredLogs = [];
+          renderList();
+          return;
+        }
+        filteredLogs = logs
+          .map((entry, idx) => ({ entry, idx }))
+          .filter(({ entry }) => getPreview(entry).toLowerCase().includes(filterQuery))
+          .map(({ entry }) => entry);
+        renderList();
       }
 
       function renderValue(value) {
@@ -618,6 +673,9 @@
           const { entries, errors } = parseJsonl(text);
 
           logs = entries;
+          filteredLogs = [];
+          filterQuery = '';
+          logFilter.value = '';
           renderList();
 
           if (logs.length > 0) {
@@ -669,6 +727,24 @@
         dropZone.classList.remove('dragover');
         const file = event.dataTransfer.files && event.dataTransfer.files[0];
         loadFile(file);
+      });
+
+      // Page-wide drag & drop
+      document.addEventListener('dragover', (event) => {
+        event.preventDefault();
+      });
+      document.addEventListener('drop', (event) => {
+        event.preventDefault();
+        const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+        if (file) loadFile(file);
+      });
+
+      // Filter input with simple debounce
+      let filterTimer = null;
+      logFilter.addEventListener('input', (e) => {
+        const val = e.target.value;
+        if (filterTimer) clearTimeout(filterTimer);
+        filterTimer = setTimeout(() => applyFilter(val), 120);
       });
     })();
   </script>
