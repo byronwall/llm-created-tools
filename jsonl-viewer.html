@@ -1086,31 +1086,148 @@
       });
 
       // Tree building and interactions
+      // --- Date grouping helpers ---
+      function parseEntryTimestamp(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+        // Prefer 'timestamp' field if present
+        let raw = entry.timestamp ?? null;
+        // Fallbacks for common fields
+        if (raw == null) raw = entry.time ?? entry.ts ?? null;
+        if (raw == null) return null;
+
+        // Numeric epoch seconds/millis or ISO string
+        if (typeof raw === 'number') {
+          const n = Number(raw);
+          if (!Number.isFinite(n)) return null;
+          // Heuristic: seconds vs millis
+          return n < 1e12 ? Math.floor(n * 1000) : Math.floor(n);
+        }
+        if (typeof raw === 'string') {
+          // Try numeric string first
+          const num = Number(raw);
+          if (Number.isFinite(num)) {
+            return num < 1e12 ? Math.floor(num * 1000) : Math.floor(num);
+          }
+          const d = new Date(raw);
+          const t = d.getTime();
+          return Number.isFinite(t) ? t : null;
+        }
+        return null;
+      }
+
+      function startOfDay(d) {
+        const x = new Date(d);
+        x.setHours(0, 0, 0, 0);
+        return x;
+      }
+      function startOfWeek(d) {
+        // Monday as start of week
+        const x = startOfDay(d);
+        const day = x.getDay(); // 0=Sun, 1=Mon, ...
+        const diffToMon = (day + 6) % 7; // Sun->6, Mon->0, ...
+        x.setDate(x.getDate() - diffToMon);
+        return x;
+      }
+
+      function isSameDay(a, b) {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      }
+
+      function bucketLabelForTime(ms) {
+        const now = Date.now();
+        const delta = now - ms;
+        const minute = 60 * 1000;
+        const hour = 60 * minute;
+        const fourHours = 4 * hour;
+
+        if (delta < minute) return 'Last minute';
+        if (delta < 10 * minute) return 'Last 10 minutes';
+        if (delta < 30 * minute) return 'Last 30 minutes';
+        if (delta < hour) return 'Last hour';
+        if (delta < fourHours) return 'Last 4 hours';
+
+        const d = new Date(ms);
+        const today = new Date();
+        if (isSameDay(d, today)) return 'Today';
+
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        if (isSameDay(d, yesterday)) return 'Yesterday';
+
+        const sowNow = startOfWeek(today);
+        const sowD = startOfWeek(d);
+        if (sowNow.getTime() === sowD.getTime()) return 'This week';
+
+        // Older: group by week-of label
+        const yyyy = sowD.getFullYear();
+        const mm = String(sowD.getMonth() + 1).padStart(2, '0');
+        const dd = String(sowD.getDate()).padStart(2, '0');
+        return `Week of ${yyyy}-${mm}-${dd}`;
+      }
+
       function buildTree(files) {
         // files: [{path, name, file}]
         treeRoot.innerHTML = '';
-        // Build nested object structure
-        const root = {};
-        files.forEach(({ path, name }) => {
-          const parts = path.split('/');
-          let node = root;
-          for (let i = 0; i < parts.length; i++) {
-            const part = parts[i];
-            const isFile = i === parts.length - 1;
-            if (!node[part]) node[part] = isFile ? { __file: true, name } : {};
-            node = node[part];
+
+        // Precompute counts and max timestamp per file
+        const counts = {};
+        /** @type {Record<string, number>} */
+        const maxTimes = {};
+
+        // Initialize with file.lastModified as fallback
+        files.forEach(({ path, file }) => {
+          counts[path] = 0;
+          maxTimes[path] = typeof file?.lastModified === 'number' ? file.lastModified : 0;
+        });
+
+        // Aggregate from parsed logs
+        logs.forEach((en) => {
+          const p = en && en.__sourcePath;
+          if (!p) return;
+          counts[p] = (counts[p] || 0) + 1;
+          const t = parseEntryTimestamp(en);
+          if (t != null) {
+            maxTimes[p] = Math.max(maxTimes[p] || 0, t);
           }
         });
 
-        // Precompute counts per file
-        const counts = {};
-        logs.forEach((en) => {
-          const p = en && en.__sourcePath;
-          if (p) counts[p] = (counts[p] || 0) + 1;
-        });
-        fileTotal.textContent = Object.keys(counts).length + (Object.keys(counts).length === 1 ? ' file' : ' files');
+        // Update total file count (only those present in index)
+        const totalFiles = files.length;
+        fileTotal.textContent = totalFiles + (totalFiles === 1 ? ' file' : ' files');
 
-        function createFolderLi(label) {
+        // Group files by bucket label
+        /** @type {Record<string, Array<{path:string,name:string,count:number,time:number}>>} */
+        const groups = {};
+        files.forEach(({ path, name }) => {
+          const t = maxTimes[path] || 0;
+          const label = t ? bucketLabelForTime(t) : 'Unknown';
+          if (!groups[label]) groups[label] = [];
+          groups[label].push({ path, name, count: counts[path] || 0, time: t });
+        });
+
+        // Desired bucket order recency-first; older weeks sorted by week start desc
+        const orderBase = [
+          'Last minute',
+          'Last 10 minutes',
+          'Last 30 minutes',
+          'Last hour',
+          'Last 4 hours',
+          'Today',
+          'Yesterday',
+          'This week',
+        ];
+
+        const weekGroups = Object.keys(groups).filter((k) => /^Week of /.test(k));
+        weekGroups.sort((a, b) => {
+          const da = new Date(a.replace('Week of ', '')).getTime();
+          const db = new Date(b.replace('Week of ', '')).getTime();
+          return db - da; // newest week first
+        });
+
+        const orderedBuckets = [...orderBase.filter((k) => groups[k] && groups[k].length), ...weekGroups];
+
+        // Render groups
+        function createGroup(label, initiallyOpen) {
           const li = document.createElement('li');
           li.style.padding = '0.25rem 0.5rem';
           const row = document.createElement('div');
@@ -1118,19 +1235,21 @@
           row.style.alignItems = 'center';
           row.style.gap = '0.4rem';
           const toggle = document.createElement('span');
-          toggle.textContent = '▸';
+          toggle.textContent = initiallyOpen ? '▾' : '▸';
           toggle.style.cursor = 'pointer';
           toggle.style.color = '#9ca3af';
           const nameEl = document.createElement('span');
           nameEl.textContent = label;
           nameEl.style.color = '#e5e7eb';
+          nameEl.style.fontWeight = '600';
+          nameEl.style.letterSpacing = '0.02em';
           row.appendChild(toggle);
           row.appendChild(nameEl);
           const childrenUl = document.createElement('ul');
           childrenUl.style.listStyle = 'none';
           childrenUl.style.margin = '0';
           childrenUl.style.paddingLeft = '1rem';
-          childrenUl.style.display = 'none';
+          childrenUl.style.display = initiallyOpen ? 'block' : 'none';
           row.addEventListener('click', () => {
             const open = childrenUl.style.display !== 'none';
             childrenUl.style.display = open ? 'none' : 'block';
@@ -1141,30 +1260,39 @@
           return { li, childrenUl };
         }
 
-        function createFileLi(path) {
+        function createFileRow(item) {
           const li = document.createElement('li');
           li.style.padding = '0.25rem 0.5rem';
           const row = document.createElement('div');
           row.style.display = 'flex';
           row.style.alignItems = 'center';
           row.style.gap = '0.4rem';
-          // Count on far left
+
           const countBadge = document.createElement('span');
           countBadge.className = 'badge';
           countBadge.style.order = '0';
-          const c = counts[path] || 0;
-          countBadge.textContent = String(c);
+          countBadge.textContent = String(item.count || 0);
 
           const nameEl = document.createElement('span');
-          nameEl.textContent = path.split('/').pop();
+          nameEl.textContent = item.path.split('/').pop();
           nameEl.style.color = '#e5e7eb';
           nameEl.style.cursor = 'pointer';
 
-          // Clicking filename loads just that file into flat list for selection
+          const timeEl = document.createElement('span');
+          timeEl.className = 'hint';
+          if (item.time) {
+            const d = new Date(item.time);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            timeEl.textContent = `${hh}:${mm}`;
+          } else {
+            timeEl.textContent = '';
+          }
+
           nameEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            currentFilePath = path;
-            filteredLogs = logs.filter((en) => en && en.__sourcePath === path);
+            currentFilePath = item.path;
+            filteredLogs = logs.filter((en) => en && en.__sourcePath === item.path);
             filterQuery = '';
             logFilter.value = '';
             renderList();
@@ -1173,26 +1301,22 @@
 
           row.appendChild(countBadge);
           row.appendChild(nameEl);
+          row.appendChild(timeEl);
           li.appendChild(row);
           return li;
         }
 
-        function walk(node, ul, prefix) {
-          const keys = Object.keys(node).sort((a, b) => a.localeCompare(b));
-          keys.forEach((k) => {
-            const v = node[k];
-            const full = prefix ? prefix + '/' + k : k;
-            if (v && v.__file) {
-              ul.appendChild(createFileLi(full));
-            } else {
-              const { li, childrenUl } = createFolderLi(k);
-              ul.appendChild(li);
-              walk(v, childrenUl, full);
-            }
-          });
-        }
+        // Choose which groups are initially open (recent ones)
+        const openSet = new Set(['Last minute', 'Last 10 minutes', 'Last 30 minutes', 'Last hour', 'Last 4 hours', 'Today', 'Yesterday', 'This week']);
 
-        walk(root, treeRoot, '');
+        orderedBuckets.forEach((label) => {
+          const items = groups[label] || [];
+          // sort by recency within group
+          items.sort((a, b) => (b.time || 0) - (a.time || 0));
+          const { li, childrenUl } = createGroup(label, openSet.has(label));
+          items.forEach((it) => childrenUl.appendChild(createFileRow(it)));
+          treeRoot.appendChild(li);
+        });
       }
 
       // File filter (left sidebar): filters visible nodes by name
@@ -1201,9 +1325,21 @@
         const q = String(e.target.value || '').trim().toLowerCase();
         if (fileFilterTimer) clearTimeout(fileFilterTimer);
         fileFilterTimer = setTimeout(() => {
-          Array.from(treeRoot.querySelectorAll('li')).forEach((li) => {
-            const txt = (li.textContent || '').toLowerCase();
-            li.style.display = q ? (txt.includes(q) ? '' : 'none') : '';
+          // Hide file rows based on match; keep groups visible if any child matches
+          const groups = Array.from(treeRoot.children);
+          groups.forEach((groupLi) => {
+            const childrenUl = groupLi.querySelector('ul');
+            if (!childrenUl) return;
+            const rows = Array.from(childrenUl.children);
+            let anyVisible = false;
+            rows.forEach((rowLi) => {
+              const txt = (rowLi.textContent || '').toLowerCase();
+              const show = !q || txt.includes(q);
+              rowLi.style.display = show ? '' : 'none';
+              if (show) anyVisible = true;
+            });
+            // Show group if it has any visible children, else hide group
+            groupLi.style.display = anyVisible ? '' : 'none';
           });
         }, 120);
       });
