@@ -1,0 +1,2538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Data Flow Control Structure Layout Explorations</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-alt: #020617;
+      --surface: #0b1220;
+      --surface-soft: #020617;
+      --surface-soft-alt: #020617;
+      --border-subtle: #1e293b;
+      --border-strong: #38bdf8;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.12);
+      --accent-2: #f97316;
+      --accent-3: #e11d48;
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --text-soft: #6b7280;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-pill: 999px;
+      --shadow-soft: 0 10px 40px rgba(15, 23, 42, 0.7);
+      --grid-gap: 16px;
+      --lane-width: 4px;
+      --header-height: 28px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 40px 60px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
+      color: var(--text);
+    }
+
+    h1 {
+      margin: 0 0 24px;
+      font-size: 28px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f9fafb;
+    }
+
+    h1 span {
+      display: inline-block;
+      padding: 6px 10px;
+      margin-right: 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-soft);
+    }
+
+    .subtitle {
+      margin-bottom: 32px;
+      color: var(--text-soft);
+      max-width: 720px;
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 24px;
+    }
+
+    .pattern {
+      padding: 18px 18px 20px;
+      border-radius: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.82));
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pattern::before {
+      content: attr(data-id);
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: rgba(148, 163, 184, 0.5);
+    }
+
+    .pattern-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    .pattern-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #e5e7eb;
+    }
+
+    .pattern-meta {
+      font-size: 11px;
+      color: var(--text-soft);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .pill {
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-soft);
+    }
+
+    .canvas {
+      border-radius: 12px;
+      border: 1px dashed rgba(148, 163, 184, 0.4);
+      padding: 10px;
+      position: relative;
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.8), #020617);
+      overflow: hidden;
+    }
+
+    /* Base blocks */
+
+    .lane {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      width: var(--lane-width);
+      border-radius: var(--radius-pill);
+      background: linear-gradient(
+        to bottom,
+        rgba(56, 189, 248, 0.8),
+        rgba(34, 197, 94, 0.8)
+      );
+      opacity: 0.55;
+    }
+
+    .lane-right {
+      left: auto;
+      right: 8px;
+    }
+
+    .block {
+      position: relative;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: radial-gradient(circle at top right, #0b1220, #020617);
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .block + .block {
+      margin-top: 8px;
+    }
+
+    .block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--header-height);
+      margin-bottom: 2px;
+    }
+
+    .block-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-soft);
+    }
+
+    .block-kind {
+      font-size: 10px;
+      border-radius: var(--radius-pill);
+      padding: 2px 7px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .block-body {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 8px;
+      align-items: center;
+    }
+
+    .field-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+      white-space: nowrap;
+    }
+
+    .field-value {
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 3px 6px;
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--text);
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+        Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .field-row-full {
+      grid-column: 1 / -1;
+    }
+
+    .connector {
+      position: relative;
+      padding-left: 16px;
+      margin-top: 4px;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .connector::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 50%;
+      width: 6px;
+      height: 1px;
+      background: rgba(148, 163, 184, 0.5);
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .chip {
+      padding: 3px 6px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+      background: rgba(15, 23, 42, 0.7);
+      white-space: nowrap;
+    }
+
+    .pill-accent {
+      border-color: rgba(34, 197, 94, 0.7);
+      color: #bbf7d0;
+      background: rgba(22, 163, 74, 0.16);
+    }
+
+    .pill-danger {
+      border-color: rgba(239, 68, 68, 0.7);
+      color: #fecaca;
+      background: rgba(248, 113, 113, 0.16);
+    }
+
+    .pill-warn {
+      border-color: rgba(251, 146, 60, 0.7);
+      color: #fed7aa;
+      background: rgba(249, 115, 22, 0.16);
+    }
+
+    .pipeline-inline {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+        Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .tag {
+      padding: 2px 6px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-soft);
+      background: rgba(15, 23, 42, 0.7);
+      white-space: nowrap;
+    }
+
+    .wide {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+    }
+
+    .wide-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .side-rail {
+      width: 42px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: radial-gradient(circle at top, #020617, #020617);
+      font-size: 10px;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-soft);
+    }
+
+    .side-meta {
+      font-size: 9px;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    /* PATTERN VARIANTS
+       Each pattern adjusts layout and decoration to give you
+       30 different visual approaches.
+    */
+
+    /* 01 – Simple stacked vertical cards */
+    .pattern-01 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 02 – Vertical with timeline lane left */
+    .pattern-02 .canvas .lane {
+      left: 4px;
+    }
+    .pattern-02 .canvas {
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* 03 – Wide two-column: control vs data */
+    .pattern-03 .canvas {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 6px;
+    }
+    .pattern-03 .canvas-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* 04 – Horizontal swim-lanes */
+    .pattern-04 .canvas {
+      display: grid;
+      grid-template-rows: repeat(4, auto);
+      row-gap: 6px;
+    }
+    .pattern-04 .lane {
+      top: auto;
+      bottom: auto;
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: 3px;
+    }
+
+    /* 05 – Wide header bar with mini blocks */
+    .pattern-05 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pattern-05 .canvas-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed rgba(148, 163, 184, 0.4);
+      margin-bottom: 4px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-soft);
+    }
+    .pattern-05 .micro-row {
+      display: flex;
+      gap: 4px;
+    }
+    .pattern-05 .micro {
+      flex: 1;
+      border-radius: 7px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 3px 4px;
+      font-size: 9px;
+      font-family: "JetBrains Mono", ui-monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 06 – Wide with left rail and compact blocks right */
+    .pattern-06 .canvas {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .pattern-06 .left-rail {
+      width: 40px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+    }
+    .pattern-06 .right-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* 07 – Cards in grid: function+conditional on row, loop+pipe on row */
+    .pattern-07 .canvas {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    /* 08 – Segmented lane with numbered bullets */
+    .pattern-08 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 22px;
+      position: relative;
+    }
+    .pattern-08 .step-index {
+      position: absolute;
+      left: 4px;
+      width: 12px;
+      text-align: center;
+      font-size: 9px;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+    }
+    .pattern-08 .block {
+      margin-left: 6px;
+    }
+
+    /* 09 – Minimal outline, lots of whitespace */
+    .pattern-09 .canvas {
+      background: transparent;
+      border-style: solid;
+      border-color: rgba(148, 163, 184, 0.3);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pattern-09 .block {
+      background: transparent;
+      border-style: dashed;
+    }
+
+    /* 10 – Dense compact badges row */
+    .pattern-10 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pattern-10 .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .pattern-10 .badge {
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      padding: 2px 6px;
+      font-size: 9px;
+      font-family: "JetBrains Mono", ui-monospace;
+      white-space: nowrap;
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    /* 11 – Ribbon header on each block */
+    .pattern-11 .block-header {
+      position: relative;
+      padding-left: 12px;
+    }
+    .pattern-11 .block-header::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 4px;
+      border-radius: 999px;
+      background: linear-gradient(
+        to bottom,
+        rgba(56, 189, 248, 1),
+        rgba(34, 197, 94, 1)
+      );
+    }
+
+    /* 12 – Gradient lane behind cards */
+    .pattern-12 .canvas {
+      position: relative;
+      padding: 8px 10px;
+    }
+    .pattern-12 .canvas::before {
+      content: "";
+      position: absolute;
+      inset: 12px 24px;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(
+        90deg,
+        rgba(56, 189, 248, 0.09),
+        rgba(34, 197, 94, 0.03)
+      );
+      pointer-events: none;
+    }
+    .pattern-12 .canvas-inner {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 13 – Split: controls on top row, data pipeline bar below */
+    .pattern-13 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .pattern-13 .top-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .pattern-13 .pipe-bar {
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      padding: 4px 8px;
+      font-family: "JetBrains Mono", ui-monospace;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    /* 14 – Column labels on top with compact rows */
+    .pattern-14 .canvas {
+      display: grid;
+      gap: 4px;
+    }
+    .pattern-14 .col-labels {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+      padding-bottom: 2px;
+      border-bottom: 1px dashed rgba(148, 163, 184, 0.4);
+    }
+
+    /* 15 – Inline rail on right with summary chips */
+    .pattern-15 .canvas {
+      display: flex;
+      gap: 8px;
+    }
+    .pattern-15 .summary-rail {
+      width: 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+    }
+    .pattern-15 .summary-rail .tag {
+      width: 100%;
+      text-align: center;
+    }
+
+    /* 16 – Very wide horizontal band (compact) */
+    .pattern-16 .canvas {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+    }
+    .pattern-16 .band-main {
+      flex: 1;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      gap: 6px;
+    }
+    .pattern-16 .block {
+      height: 76px;
+    }
+
+    /* 17 – Bubble chain (rounded, low borders) */
+    .pattern-17 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .pattern-17 .block {
+      border-radius: 999px;
+      padding: 6px 14px;
+    }
+    .pattern-17 .block-body {
+      grid-template-columns: 60px 1fr;
+    }
+
+    /* 18 – Blueprint: thin strokes, monospaced */
+    .pattern-18 .canvas {
+      border-style: solid;
+      border-color: rgba(148, 163, 184, 0.6);
+      background: radial-gradient(circle at top, #020617, #020617);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .pattern-18 .block {
+      background: transparent;
+      border-style: solid;
+      font-family: "JetBrains Mono", ui-monospace;
+      font-size: 10px;
+    }
+
+    /* 19 – Column overview with mini sparklines (fake) */
+    .pattern-19 .canvas {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px;
+    }
+    .pattern-19 .overview {
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .spark {
+      height: 26px;
+      border-radius: 7px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    .spark::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 4px;
+      border: 1px dashed rgba(56, 189, 248, 0.7);
+    }
+
+    /* 20 – Vertical with colored blocks by type */
+    .pattern-20 .block-kind-function {
+      background: rgba(56, 189, 248, 0.08);
+      border-color: rgba(56, 189, 248, 0.8);
+      color: #e0f2fe;
+    }
+    .pattern-20 .block-kind-conditional {
+      background: rgba(34, 197, 94, 0.08);
+      border-color: rgba(34, 197, 94, 0.8);
+      color: #bbf7d0;
+    }
+    .pattern-20 .block-kind-loop {
+      background: rgba(249, 115, 22, 0.08);
+      border-color: rgba(249, 115, 22, 0.8);
+      color: #fed7aa;
+    }
+    .pattern-20 .block-kind-pipe {
+      background: rgba(244, 63, 94, 0.08);
+      border-color: rgba(244, 63, 94, 0.8);
+      color: #fecaca;
+    }
+
+    /* 21 – Slim compact rows, no field labels */
+    .pattern-21 .block-body {
+      display: block;
+    }
+    .pattern-21 .field-label {
+      display: none;
+    }
+    .pattern-21 .field-value {
+      display: inline-block;
+      margin-right: 4px;
+    }
+
+    /* 22 – Matrix grid: four cells */
+    .pattern-22 .canvas {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    /* 23 – Metro style: strong accent left bars */
+    .pattern-23 .block {
+      position: relative;
+      padding-left: 14px;
+    }
+    .pattern-23 .block::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 999px;
+      background: linear-gradient(
+        to bottom,
+        rgba(56, 189, 248, 0.9),
+        rgba(251, 146, 60, 0.9)
+      );
+    }
+
+    /* 24 – Lane with stacked micro-chips on side */
+    .pattern-24 .canvas {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .pattern-24 .chip-lane {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pattern-24 .chip-lane .chip {
+      font-size: 8px;
+    }
+
+    /* 25 – Flowchart-esque: arrow connectors */
+    .pattern-25 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+      padding-left: 6px;
+    }
+    .pattern-25 .arrow-connector {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-soft);
+      margin: 2px 0;
+    }
+    .pattern-25 .arrow {
+      width: 24px;
+      height: 1px;
+      background: rgba(148, 163, 184, 0.6);
+      position: relative;
+    }
+    .pattern-25 .arrow::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: -2px;
+      width: 4px;
+      height: 4px;
+      border-right: 1px solid rgba(148, 163, 184, 0.9);
+      border-top: 1px solid rgba(148, 163, 184, 0.9);
+      transform: rotate(45deg);
+    }
+
+    /* 26 – Ribbon across top with icons (fake) */
+    .pattern-26 .canvas {
+      padding-top: 22px;
+    }
+    .pattern-26 .canvas::before {
+      content: "fn → if → loop → pipe";
+      position: absolute;
+      top: 8px;
+      left: 12px;
+      right: 12px;
+      height: 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-soft);
+      background: radial-gradient(circle at top, #020617, #020617);
+    }
+    .pattern-26 .canvas-inner {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    /* 27 – Split screen: left compact list, right wide band */
+    .pattern-27 .canvas {
+      display: grid;
+      grid-template-columns: 140px minmax(0, 1fr);
+      gap: 8px;
+    }
+    .pattern-27 .left-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+    .pattern-27 .left-item {
+      border-radius: 7px;
+      border: 1px dashed rgba(148, 163, 184, 0.4);
+      padding: 3px 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pattern-27 .right-band {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-family: "JetBrains Mono", ui-monospace;
+      font-size: 10px;
+    }
+
+    /* 28 – Tag cloud on top, details below */
+    .pattern-28 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .pattern-28 .tag-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    /* 29 – Ultra-compact inline rows only */
+    .pattern-29 .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pattern-29 .inline-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: "JetBrains Mono", ui-monospace;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pattern-29 .inline-label {
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 9px;
+      color: var(--text-soft);
+    }
+
+    /* 30 – Thick vertical “data highway” lane */
+    .pattern-30 .canvas {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .pattern-30 .highway {
+      width: 10px;
+      border-radius: 999px;
+      background: linear-gradient(
+        to bottom,
+        rgba(56, 189, 248, 0.9),
+        rgba(34, 197, 94, 0.9)
+      );
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.8),
+        0 0 16px rgba(56, 189, 248, 0.45);
+    }
+    .pattern-30 .highway-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1><span>Explorations</span>Data Flow Control Structure Layouts (30)</h1>
+  <p class="subtitle">
+    Each card is a different way to render the same semantic pieces:
+    <strong>Function</strong>, <strong>Conditional</strong>, <strong>Loop</strong>,
+    and a <strong>Pipeline expression</strong>. Use this to decide which compact / wide
+    patterns feel clearest for your data-flow visualization.
+  </p>
+
+  <div class="grid">
+    <!-- PATTERN 01 -->
+    <section class="pattern pattern-01" data-id="#01">
+      <header class="pattern-header">
+        <div class="pattern-title">Stacked Cards</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Vertical</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Name</div>
+            <div class="field-value">scoreOrders</div>
+            <div class="field-label">Params</div>
+            <div class="field-value">(orders, threshold)</div>
+            <div class="field-label">Returns</div>
+            <div class="field-value">OrderScore[]</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Conditional</span>
+            <span class="block-kind">if / else</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">If</div>
+            <div class="field-value">score &gt;= threshold</div>
+            <div class="field-label">Else</div>
+            <div class="field-value">flag = "low-score"</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for-of</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Iter</div>
+            <div class="field-value">for (order of orders)</div>
+            <div class="field-label">Body</div>
+            <div class="field-value">yield score(order)</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipeline</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Expr</div>
+            <div class="field-value">x = data.filter(c =&gt; c.isGood)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 02 -->
+    <section class="pattern pattern-02" data-id="#02">
+      <header class="pattern-header">
+        <div class="pattern-title">Timeline Lane</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Lane Left</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="lane"></div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Start</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Function</div>
+            <div class="field-value">scoreOrders(orders)</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Guard</span>
+            <span class="block-kind">if</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Condition</div>
+            <div class="field-value">order.total &gt; 0</div>
+          </div>
+          <div class="connector">Otherwise: skip scoring</div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Range</div>
+            <div class="field-value">for each order in orders</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Result</span>
+            <span class="block-kind">pipe</span>
+          </div>
+          <div class="pipeline-inline">
+            x = data
+            <span class="tag">filter: c.isGood</span>
+            <span class="tag">map: score</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 03 -->
+    <section class="pattern pattern-03" data-id="#03">
+      <header class="pattern-header">
+        <div class="pattern-title">Control vs Data Columns</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">2 Columns</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="canvas-col">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Function</span>
+              <span class="block-kind">entry</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Name</div>
+              <div class="field-value">scoreOrders</div>
+              <div class="field-label">Params</div>
+              <div class="field-value">(orders)</div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Conditional</span>
+              <span class="block-kind">if</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Guard</div>
+              <div class="field-value">orders.length &gt; 0</div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Iter</div>
+              <div class="field-value">for (order of orders)</div>
+            </div>
+          </div>
+        </div>
+        <div class="canvas-col">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Data Pipeline</span>
+              <span class="block-kind">wide</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Stage 1</div>
+              <div class="field-value">valid = orders.filter(o =&gt; o.total &gt; 0)</div>
+              <div class="field-label">Stage 2</div>
+              <div class="field-value">scored = valid.map(scoreOrder)</div>
+              <div class="field-label">Stage 3</div>
+              <div class="field-value">x = scored.filter(s =&gt; s &gt;= threshold)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 04 -->
+    <section class="pattern pattern-04" data-id="#04">
+      <header class="pattern-header">
+        <div class="pattern-title">Horizontal Swim-Lanes</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Lanes</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="lane"></div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function Lane</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="pipeline-inline">
+            scoreOrders(orders, threshold) → scores
+          </div>
+        </div>
+        <div class="lane" style="top: 48px;"></div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Guard Lane</span>
+            <span class="block-kind">if</span>
+          </div>
+          <div class="pipeline-inline">
+            if (order.total &gt; 0) → include
+          </div>
+        </div>
+        <div class="lane" style="top: 96px;"></div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop Lane</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="pipeline-inline">
+            for order of orders → score(order)
+          </div>
+        </div>
+        <div class="lane" style="top: 144px;"></div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipeline Lane</span>
+            <span class="block-kind">pipe</span>
+          </div>
+          <div class="pipeline-inline">
+            x = data → filter(isGood) → map(score)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 05 -->
+    <section class="pattern pattern-05" data-id="#05">
+      <header class="pattern-header">
+        <div class="pattern-title">Dashboard Header</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Summary Band</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="canvas-header">
+          <span>scoreOrders Flow</span>
+          <span class="side-meta">fn · if · loop · pipe</span>
+        </div>
+        <div class="micro-row">
+          <div class="micro">fn: scoreOrders(orders, threshold)</div>
+          <div class="micro">if: score ≥ threshold</div>
+        </div>
+        <div class="micro-row">
+          <div class="micro">loop: for order of orders</div>
+          <div class="micro">pipe: x = data.filter(c =&gt; c.isGood)</div>
+        </div>
+        <div class="block" style="margin-top: 6px;">
+          <div class="block-header">
+            <span class="block-label">Detail Slice</span>
+            <span class="block-kind">compact</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Focus</div>
+            <div class="field-value">threshold guarding + filter / map series</div>
+            <div class="field-label">Note</div>
+            <div class="field-value">designed for “overview at a glance”</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 06 -->
+    <section class="pattern pattern-06" data-id="#06">
+      <header class="pattern-header">
+        <div class="pattern-title">Left Rail Timeline</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Rail</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="left-rail">
+          <div>Entry</div>
+          <div>Guard</div>
+          <div>Loop</div>
+          <div>Pipe</div>
+        </div>
+        <div class="right-main">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Function</span>
+              <span class="block-kind">fn</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Signature</div>
+              <div class="field-value">scoreOrders(orders, threshold)</div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Conditional</span>
+              <span class="block-kind">if</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Check</div>
+              <div class="field-value">orders.length &gt; 0</div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for-of</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Iter</div>
+              <div class="field-value">for (order of orders)</div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipeline</span>
+              <span class="block-kind">pipe</span>
+            </div>
+            <div class="pipeline-inline">
+              x = data.filter(c =&gt; c.isGood).map(score)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 07 -->
+    <section class="pattern pattern-07" data-id="#07">
+      <header class="pattern-header">
+        <div class="pattern-title">2x2 Grid</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Grid</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Name</div>
+            <div class="field-value">scoreOrders</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Conditional</span>
+            <span class="block-kind">if</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Cond</div>
+            <div class="field-value">score &gt;= threshold</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Iter</div>
+            <div class="field-value">for (order of orders)</div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipeline</span>
+            <span class="block-kind">pipe</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Expr</div>
+            <div class="field-value">x = data.filter(c =&gt; c.isGood)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 08 -->
+    <section class="pattern pattern-08" data-id="#08">
+      <header class="pattern-header">
+        <div class="pattern-title">Numbered Segments</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Steps</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="lane"></div>
+        <div class="step-index" style="top:16px;">1</div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="pipeline-inline">
+            scoreOrders(orders, threshold)
+          </div>
+        </div>
+        <div class="step-index" style="top:72px;">2</div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If</span>
+            <span class="block-kind">guard</span>
+          </div>
+          <div class="pipeline-inline">
+            if order.total &gt; 0
+          </div>
+        </div>
+        <div class="step-index" style="top:128px;">3</div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="pipeline-inline">
+            for order in orders
+          </div>
+        </div>
+        <div class="step-index" style="top:184px;">4</div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipe</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="pipeline-inline">
+            x = data.filter(c =&gt; c.isGood)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 09 -->
+    <section class="pattern pattern-09" data-id="#09">
+      <header class="pattern-header">
+        <div class="pattern-title">Minimal Outline</div>
+        <div class="pattern-meta">
+          <span class="pill">Sparse</span>
+          <span class="pill">Blueprint</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              scoreOrders(orders, threshold): OrderScore[]
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If / Else</span>
+            <span class="block-kind">branch</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              if score ≥ threshold → include, else → flag("low-score")
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              for order of orders → score(order)
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipeline</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 10 -->
+    <section class="pattern pattern-10" data-id="#10">
+      <header class="pattern-header">
+        <div class="pattern-title">Badge Strip</div>
+        <div class="pattern-meta">
+          <span class="pill">Ultra Compact</span>
+          <span class="pill">Badges</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="badge-row">
+          <span class="badge">fn: scoreOrders(orders, threshold)</span>
+          <span class="badge">if: score ≥ threshold</span>
+          <span class="badge">loop: for order of orders</span>
+          <span class="badge">pipe: x = data.filter(c =&gt; c.isGood)</span>
+        </div>
+        <div class="block" style="margin-top: 6px;">
+          <div class="block-header">
+            <span class="block-label">Legend</span>
+            <span class="block-kind">keys</span>
+          </div>
+          <div class="chip-row">
+            <span class="chip pill-accent">fn</span>
+            <span class="chip pill-warn">if</span>
+            <span class="chip pill-danger">loop</span>
+            <span class="chip">pipe</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 11 -->
+    <section class="pattern pattern-11" data-id="#11">
+      <header class="pattern-header">
+        <div class="pattern-title">Ribbon Headers</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Emphasized Labels</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              scoreOrders(orders, threshold)
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Conditional</span>
+            <span class="block-kind">if/else</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              if score ≥ threshold else flag("low-score")
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipeline</span>
+            <span class="block-kind">pipe</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 12 -->
+    <section class="pattern pattern-12" data-id="#12">
+      <header class="pattern-header">
+        <div class="pattern-title">Soft Gradient Lane</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Highlight Band</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="canvas-inner">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Function</span>
+              <span class="block-kind">fn</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Signature</div>
+              <div class="field-value">
+                scoreOrders(orders, threshold)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Conditional</span>
+              <span class="block-kind">if</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Condition</div>
+              <div class="field-value">
+                score ≥ threshold
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-label">Iter</div>
+              <div class="field-value">
+                for (order of orders)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipeline</span>
+              <span class="block-kind">pipe</span>
+            </div>
+            <div class="pipeline-inline">
+              x = data → filter(isGood) → map(score)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 13 -->
+    <section class="pattern pattern-13" data-id="#13">
+      <header class="pattern-header">
+        <div class="pattern-title">Row of Controls + Pipe Bar</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Top Row</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="top-row">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Fn</span>
+              <span class="block-kind">entry</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                scoreOrders(orders)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">If</span>
+              <span class="block-kind">guard</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                orders.length &gt; 0
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for order of orders
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pipe-bar">
+          x = data.filter(c =&gt; c.isGood).map(score)
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 14 -->
+    <section class="pattern pattern-14" data-id="#14">
+      <header class="pattern-header">
+        <div class="pattern-title">Column Labels</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Tabular Feel</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="col-labels">
+          <div>Block</div>
+          <div>Details</div>
+        </div>
+        <div class="block">
+          <div class="block-body">
+            <div class="field-label">Fn</div>
+            <div class="field-value">
+              scoreOrders(orders, threshold)
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-body">
+            <div class="field-label">If</div>
+            <div class="field-value">
+              score ≥ threshold
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-body">
+            <div class="field-label">Loop</div>
+            <div class="field-value">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-body">
+            <div class="field-label">Pipe</div>
+            <div class="field-value">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 15 -->
+    <section class="pattern pattern-15" data-id="#15">
+      <header class="pattern-header">
+        <div class="pattern-title">Right Summary Rail</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Side Stats</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="summary-rail">
+          <span class="tag">fn</span>
+          <span class="tag">if</span>
+          <span class="tag">loop</span>
+          <span class="tag">pipe</span>
+        </div>
+        <div class="wide-main">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Function</span>
+              <span class="block-kind">scoreOrders</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                (orders, threshold) ⇒ OrderScore[]
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Guard</span>
+              <span class="block-kind">if</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                orders.length &gt; 0
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for (order of orders)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipeline</span>
+              <span class="block-kind">expr</span>
+            </div>
+            <div class="pipeline-inline">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 16 -->
+    <section class="pattern pattern-16" data-id="#16">
+      <header class="pattern-header">
+        <div class="pattern-title">Horizontal Band</div>
+        <div class="pattern-meta">
+          <span class="pill">Very Wide</span>
+          <span class="pill">Bands</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="band-main">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Fn</span>
+              <span class="block-kind">entry</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                scoreOrders
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">If</span>
+              <span class="block-kind">guard</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                orders.length &gt; 0
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for order of orders
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipe</span>
+              <span class="block-kind">expr</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                x = data.filter(c =&gt; c.isGood)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 17 -->
+    <section class="pattern pattern-17" data-id="#17">
+      <header class="pattern-header">
+        <div class="pattern-title">Bubble Chain</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Rounded</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Fn</span>
+            <span class="block-kind">score</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">sig</div>
+            <div class="field-value">
+              scoreOrders(orders)
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If</span>
+            <span class="block-kind">guard</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">cond</div>
+            <div class="field-value">
+              score ≥ threshold
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">iter</div>
+            <div class="field-value">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipe</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="pipeline-inline">
+            x = data.filter(c =&gt; c.isGood)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 18 -->
+    <section class="pattern pattern-18" data-id="#18">
+      <header class="pattern-header">
+        <div class="pattern-title">Blueprint Monospace</div>
+        <div class="pattern-meta">
+          <span class="pill">Technical</span>
+          <span class="pill">Monospace</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">FN</span>
+            <span class="block-kind">scoreOrders</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              fn scoreOrders(orders, threshold) -&gt; OrderScore[]
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">IF</span>
+            <span class="block-kind">guard</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              if score &gt;= threshold { include(order) } else { flag(order) }
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">LOOP</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              for order in orders { score(order) }
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">PIPE</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              x = data.filter(|c| c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 19 -->
+    <section class="pattern pattern-19" data-id="#19">
+      <header class="pattern-header">
+        <div class="pattern-title">Overview + Blocks</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Overview</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="overview">
+          <div>Overview</div>
+          <div class="spark"></div>
+          <div class="spark"></div>
+          <div class="spark"></div>
+        </div>
+        <div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Function</span>
+              <span class="block-kind">fn</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                scoreOrders(orders, threshold)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">If + Loop</span>
+              <span class="block-kind">control</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for order of orders where score ≥ threshold
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipeline</span>
+              <span class="block-kind">expr</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                x = data.filter(c =&gt; c.isGood)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 20 -->
+    <section class="pattern pattern-20" data-id="#20">
+      <header class="pattern-header">
+        <div class="pattern-title">Color-Coded Types</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">By Type</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Function</span>
+            <span class="block-kind block-kind-function">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              scoreOrders(orders, threshold)
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Conditional</span>
+            <span class="block-kind block-kind-conditional">if</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              score ≥ threshold
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind block-kind-loop">loop</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipeline</span>
+            <span class="block-kind block-kind-pipe">pipe</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 21 -->
+    <section class="pattern pattern-21" data-id="#21">
+      <header class="pattern-header">
+        <div class="pattern-title">Label-less Compact</div>
+        <div class="pattern-meta">
+          <span class="pill">Ultra Compact</span>
+          <span class="pill">Inline</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Fn</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <span class="field-value">scoreOrders(orders, threshold)</span>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If</span>
+            <span class="block-kind">cond</span>
+          </div>
+          <div class="block-body">
+            <span class="field-value">score ≥ threshold</span>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <span class="field-value">for order of orders</span>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipe</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="block-body">
+            <span class="field-value">x = data.filter(c =&gt; c.isGood)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 22 -->
+    <section class="pattern pattern-22" data-id="#22">
+      <header class="pattern-header">
+        <div class="pattern-title">Matrix Blocks</div>
+        <div class="pattern-meta">
+          <span class="pill">Grid</span>
+          <span class="pill">Balanced</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Fn</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              scoreOrders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If</span>
+            <span class="block-kind">guard</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              score ≥ threshold
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipe</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 23 -->
+    <section class="pattern pattern-23" data-id="#23">
+      <header class="pattern-header">
+        <div class="pattern-title">Metro Bars</div>
+        <div class="pattern-meta">
+          <span class="pill">Strong</span>
+          <span class="pill">Accent Bars</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Fn</span>
+            <span class="block-kind">fn</span>
+          </div>
+          <div class="block-body">
+            <div class="field-value field-row-full">
+              scoreOrders(orders, threshold)
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If</span>
+            <span class="block-kind">guard</span>
+          </div>
+          <div class="block-body">
+            <div class="field-value field-row-full">
+              score ≥ threshold
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-value field-row-full">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipe</span>
+            <span class="block-kind">expr</span>
+          </div>
+          <div class="block-body">
+            <div class="field-value field-row-full">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 24 -->
+    <section class="pattern pattern-24" data-id="#24">
+      <header class="pattern-header">
+        <div class="pattern-title">Chip Side Lane</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Chips</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="chip-lane">
+          <span class="chip pill-accent">fn</span>
+          <span class="chip pill-warn">if</span>
+          <span class="chip pill-danger">loop</span>
+          <span class="chip">pipe</span>
+        </div>
+        <div class="wide-main">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Function</span>
+              <span class="block-kind">scoreOrders</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                (orders, threshold)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Conditional</span>
+              <span class="block-kind">if</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                score ≥ threshold
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for order of orders
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipeline</span>
+              <span class="block-kind">expr</span>
+            </div>
+            <div class="pipeline-inline">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 25 -->
+    <section class="pattern pattern-25" data-id="#25">
+      <header class="pattern-header">
+        <div class="pattern-title">Flowchart Arrows</div>
+        <div class="pattern-meta">
+          <span class="pill">Sequential</span>
+          <span class="pill">Arrows</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Fn</span>
+            <span class="block-kind">start</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              scoreOrders(orders, threshold)
+            </div>
+          </div>
+        </div>
+        <div class="arrow-connector">
+          <div class="arrow"></div>
+          <span>guard</span>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">If</span>
+            <span class="block-kind">branch</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              score ≥ threshold
+            </div>
+          </div>
+        </div>
+        <div class="arrow-connector">
+          <div class="arrow"></div>
+          <span>iterate</span>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Loop</span>
+            <span class="block-kind">for</span>
+          </div>
+          <div class="block-body">
+            <div class="field-row-full field-value">
+              for order of orders
+            </div>
+          </div>
+        </div>
+        <div class="arrow-connector">
+          <div class="arrow"></div>
+          <span>pipe</span>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Pipe</span>
+            <span class="block-kind">result</span>
+          </div>
+          <div class="pipeline-inline">
+            x = data.filter(c =&gt; c.isGood)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 26 -->
+    <section class="pattern pattern-26" data-id="#26">
+      <header class="pattern-header">
+        <div class="pattern-title">Ribbon Legend</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Legend Band</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="canvas-inner">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Fn</span>
+              <span class="block-kind">score</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                scoreOrders
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">If</span>
+              <span class="block-kind">guard</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                score ≥ threshold
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for order of orders
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipe</span>
+              <span class="block-kind">expr</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                x = data.filter(c =&gt; c.isGood)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 27 -->
+    <section class="pattern pattern-27" data-id="#27">
+      <header class="pattern-header">
+        <div class="pattern-title">Split List + Band</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Split</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="left-list">
+          <div class="left-item">fn: scoreOrders</div>
+          <div class="left-item">if: score ≥ threshold</div>
+          <div class="left-item">loop: for order of orders</div>
+          <div class="left-item">pipe: x = data.filter(c =&gt; c.isGood)</div>
+        </div>
+        <div class="right-band">
+          <div>Data Flow</div>
+          <div>x = data</div>
+          <div>→ filter(c.isGood)</div>
+          <div>→ map(scoreOrder)</div>
+          <div>→ threshold guard</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 28 -->
+    <section class="pattern pattern-28" data-id="#28">
+      <header class="pattern-header">
+        <div class="pattern-title">Tag Cloud + Detail</div>
+        <div class="pattern-meta">
+          <span class="pill">Compact</span>
+          <span class="pill">Tags</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="tag-cloud">
+          <span class="tag">fn:scoreOrders</span>
+          <span class="tag">if:score≥threshold</span>
+          <span class="tag">loop:for orders</span>
+          <span class="tag">pipe:filter(isGood)</span>
+        </div>
+        <div class="block">
+          <div class="block-header">
+            <span class="block-label">Details</span>
+            <span class="block-kind">zoom</span>
+          </div>
+          <div class="block-body">
+            <div class="field-label">Focus</div>
+            <div class="field-value">
+              data.filter(c =&gt; c.isGood)
+            </div>
+            <div class="field-label">Note</div>
+            <div class="field-value">
+              Each tag above can act as a click target.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 29 -->
+    <section class="pattern pattern-29" data-id="#29">
+      <header class="pattern-header">
+        <div class="pattern-title">Inline Rows Only</div>
+        <div class="pattern-meta">
+          <span class="pill">Maximum Compact</span>
+          <span class="pill">Dense</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="inline-row">
+          <span class="inline-label">fn</span>
+          <span>scoreOrders(orders, threshold)</span>
+        </div>
+        <div class="inline-row">
+          <span class="inline-label">if</span>
+          <span>score ≥ threshold</span>
+        </div>
+        <div class="inline-row">
+          <span class="inline-label">loop</span>
+          <span>for order of orders</span>
+        </div>
+        <div class="inline-row">
+          <span class="inline-label">pipe</span>
+          <span>x = data.filter(c =&gt; c.isGood)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN 30 -->
+    <section class="pattern pattern-30" data-id="#30">
+      <header class="pattern-header">
+        <div class="pattern-title">Data Highway</div>
+        <div class="pattern-meta">
+          <span class="pill">Wide</span>
+          <span class="pill">Strong Lane</span>
+        </div>
+      </header>
+      <div class="canvas">
+        <div class="highway"></div>
+        <div class="highway-main">
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Entry</span>
+              <span class="block-kind">fn</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                scoreOrders(orders, threshold)
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Guard</span>
+              <span class="block-kind">if</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                score ≥ threshold
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Loop</span>
+              <span class="block-kind">for</span>
+            </div>
+            <div class="block-body">
+              <div class="field-row-full field-value">
+                for order of orders
+              </div>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-header">
+              <span class="block-label">Pipeline</span>
+              <span class="block-kind">expr</span>
+            </div>
+            <div class="pipeline-inline">
+              x = data.filter(c =&gt; c.isGood)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

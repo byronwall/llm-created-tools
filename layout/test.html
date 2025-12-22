@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Control Block Layout – Crisp Variants</title>
+  <style>
+    :root {
+      --bg: #020617;
+      --surface: #020617;
+      --border-strong: #e5e7eb;
+      --border-soft: #4b5563;
+      --accent: #0ea5e9;
+      --accent-2: #22c55e;
+      --accent-3: #f97316;
+      --accent-4: #e11d48;
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --radius: 8px;
+      --radius-lg: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 32px 36px 48px;
+      font-family: system-ui, -apple-system, "SF Pro Text", -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #111827 0, #020617 60%);
+      color: var(--text);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 26px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      margin: 0 0 24px;
+      color: var(--text-muted);
+      font-size: 13px;
+      max-width: 680px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(410px, 1fr));
+      gap: 22px;
+    }
+
+    .pattern {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: #020617;
+      padding: 14px 16px 16px;
+    }
+
+    .pattern-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .pattern-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+    }
+
+    .pattern-meta {
+      display: flex;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .pattern-id {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.55);
+    }
+
+    .canvas {
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: radial-gradient(circle at top left, #020617 0, #020617 55%);
+    }
+
+    /* CORE BLOCK */
+
+    .flow-block {
+      display: grid;
+      grid-template-columns: 0.9fr 1.4fr 0.6fr;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        "name cond meta"
+        "label body side";
+      border: 1.5px solid var(--border-strong);
+      border-radius: var(--radius);
+      background: #020617;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    .flow-block.compact {
+      grid-template-columns: 1fr 1.4fr 0.7fr;
+    }
+
+    .fb-cell {
+      font-size: 11px;
+      padding: 4px 6px;
+      border-right: 1px solid var(--border-soft);
+      border-top: 1px solid var(--border-soft);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .flow-block .fb-cell:nth-child(-n+3) {
+      border-top: none; /* top row has no top border */
+    }
+
+    .fb-name       { grid-area: name;  font-weight: 600; }
+    .fb-cond       { grid-area: cond;  color: #e5e7eb; }
+    .fb-meta       { grid-area: meta;  text-align: right; color: var(--text-muted); }
+    .fb-label      { grid-area: label; text-transform: uppercase; font-size: 10px; letter-spacing: 0.14em; color: var(--text-muted); }
+    .fb-body       { grid-area: body;  color: #e5e7eb; }
+    .fb-side       { grid-area: side;  text-align: right; color: var(--text-muted); font-size: 10px; }
+
+    /* emphasise cond + body cells with slightly tinted bg */
+    .fb-cond {
+      background: rgba(14, 148, 211, 0.14);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .fb-body {
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .flow-block .fb-name {
+      border-left: none;
+    }
+    .flow-block .fb-label {
+      border-left: none;
+    }
+
+    /* removing right border on last column to keep crisp outer frame */
+    .flow-block .fb-meta,
+    .flow-block .fb-side {
+      border-right: none;
+    }
+
+    /* linked if/else pair – shared borders */
+    .linked-pair {
+      margin-bottom: 10px;
+    }
+
+    .linked-pair .flow-block {
+      border-radius: 0;
+      margin: 0;
+    }
+
+    .linked-pair .flow-block:first-child {
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .linked-pair .flow-block:last-child {
+      border-radius: 0 0 var(--radius) var(--radius);
+      border-top-width: 0; /* share border with top */
+    }
+
+    .linked-pair .flow-block + .flow-block {
+      margin-top: 0;
+    }
+
+    /* spacing between unrelated blocks */
+    .flow-block + .flow-block:not(.no-gap) {
+      margin-top: 10px;
+    }
+
+    /* layout helpers per pattern */
+
+    .p-wide-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .p-wide-row .flow-block {
+      flex: 1;
+    }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr;
+      gap: 10px;
+    }
+
+    .rail-layout {
+      display: grid;
+      grid-template-columns: 58px 1fr;
+      gap: 10px;
+    }
+
+    .rail {
+      border-radius: var(--radius-lg);
+      border: 1.5px solid var(--border-strong);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 8px 6px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+    }
+
+    .rail span {
+      border-bottom: 1px solid var(--border-soft);
+      padding-bottom: 4px;
+      margin-bottom: 4px;
+    }
+
+    .rail span:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .p-split {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 10px;
+    }
+
+    .thin-border .flow-block {
+      border-width: 1px;
+    }
+
+    .accent-fn .flow-block-fn      { border-color: var(--accent);   }
+    .accent-fn .flow-block-if      { border-color: var(--accent-2); }
+    .accent-fn .flow-block-loop    { border-color: var(--accent-3); }
+    .accent-fn .flow-block-pipe    { border-color: var(--accent-4); }
+
+    .flow-block-label-only .fb-label {
+      background: rgba(15, 23, 42, 0.9);
+    }
+  </style>
+</head>
+<body>
+  <h1>Control Blocks – Crisp Box Variants (10)</h1>
+  <p class="subtitle">
+    All variants keep the same internal structure: <strong>name in the top-left cell</strong>,
+    <strong>params / condition in the top-middle cell</strong>, and
+    <strong>body / contents in the bottom-middle cell</strong>.
+    Linked segments like <code>if / else</code> are rendered as a shared-border stack.
+  </p>
+
+  <div class="grid">
+
+    <!-- PATTERN A1 -->
+    <section class="pattern" id="pattern-a1">
+      <div class="pattern-header">
+        <div class="pattern-title">A1 · Tall Stack</div>
+        <div class="pattern-meta">
+          <span class="badge">Compact</span>
+          <span class="badge">Vertical</span>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="flow-block flow-block-fn">
+          <div class="fb-cell fb-name">scoreOrders</div>
+          <div class="fb-cell fb-cond">(orders, threshold)</div>
+          <div class="fb-cell fb-meta">fn</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">iterate orders, compute score, emit OrderScore records.</div>
+          <div class="fb-cell fb-side">returns OrderScore[]</div>
+        </div>
+
+        <div class="linked-pair">
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">if</div>
+            <div class="fb-cell fb-cond">score ≥ threshold</div>
+            <div class="fb-cell fb-meta">guard</div>
+            <div class="fb-cell fb-label">Then</div>
+            <div class="fb-cell fb-body">mark order as &quot;good&quot; and include in result set.</div>
+            <div class="fb-cell fb-side">branch A</div>
+          </div>
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">else</div>
+            <div class="fb-cell fb-cond">otherwise</div>
+            <div class="fb-cell fb-meta">fallback</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">attach &quot;low-score&quot; tag; omit from pipeline.</div>
+            <div class="fb-cell fb-side">branch B</div>
+          </div>
+        </div>
+
+        <div class="flow-block flow-block-loop">
+          <div class="fb-cell fb-name">for-of</div>
+          <div class="fb-cell fb-cond">for (order of orders)</div>
+          <div class="fb-cell fb-meta">loop</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">yield score(order) into downstream collector.</div>
+          <div class="fb-cell fb-side">aggregation</div>
+        </div>
+
+        <div class="flow-block flow-block-pipe">
+          <div class="fb-cell fb-name">pipeline</div>
+          <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+          <div class="fb-cell fb-meta">expr</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">map to score, reduce to x.</div>
+          <div class="fb-cell fb-side">x</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A2 -->
+    <section class="pattern" id="pattern-a2">
+      <div class="pattern-header">
+        <div class="pattern-title">A2 · Wide Control Row</div>
+        <div class="pattern-meta">
+          <span class="badge">Wide</span>
+          <span class="badge">Row</span>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="p-wide-row">
+          <div class="flow-block compact flow-block-fn">
+            <div class="fb-cell fb-name">scoreOrders</div>
+            <div class="fb-cell fb-cond">(orders, threshold)</div>
+            <div class="fb-cell fb-meta">fn</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">prepare scoring context &amp; delegate.</div>
+            <div class="fb-cell fb-side">entry</div>
+          </div>
+
+          <div class="linked-pair" style="flex:1.2;">
+            <div class="flow-block compact flow-block-if">
+              <div class="fb-cell fb-name">if</div>
+              <div class="fb-cell fb-cond">score ≥ threshold</div>
+              <div class="fb-cell fb-meta">branch</div>
+              <div class="fb-cell fb-label">Then</div>
+              <div class="fb-cell fb-body">include order in &quot;good&quot; list.</div>
+              <div class="fb-cell fb-side">✓</div>
+            </div>
+            <div class="flow-block compact flow-block-if">
+              <div class="fb-cell fb-name">else</div>
+              <div class="fb-cell fb-cond">score &lt; threshold</div>
+              <div class="fb-cell fb-meta">branch</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">mark as &quot;review&quot;.</div>
+              <div class="fb-cell fb-side">!</div>
+            </div>
+          </div>
+
+          <div class="flow-block compact flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">loop</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">compute score(order).</div>
+            <div class="fb-cell fb-side">iter</div>
+          </div>
+
+          <div class="flow-block compact flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">expr</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">x receives the filtered collection.</div>
+            <div class="fb-cell fb-side">result</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A3 -->
+    <section class="pattern" id="pattern-a3">
+      <div class="pattern-header">
+        <div class="pattern-title">A3 · Two Column Stack</div>
+        <div class="pattern-meta">
+          <span class="badge">Compact</span>
+          <span class="badge">2 Columns</span>
+        </div>
+      </div>
+      <div class="canvas two-column">
+        <div>
+          <div class="section-label">Function &amp; Loop</div>
+          <div class="flow-block flow-block-fn">
+            <div class="fb-cell fb-name">scoreOrders</div>
+            <div class="fb-cell fb-cond">(orders, threshold)</div>
+            <div class="fb-cell fb-meta">fn</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">prepare configuration, call internal scorer.</div>
+            <div class="fb-cell fb-side">setup</div>
+          </div>
+
+          <div class="flow-block flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">loop</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">score each order sequentially.</div>
+            <div class="fb-cell fb-side">per item</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-label">Branch &amp; Pipe</div>
+
+          <div class="linked-pair">
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">if</div>
+              <div class="fb-cell fb-cond">score ≥ threshold</div>
+              <div class="fb-cell fb-meta">branch</div>
+              <div class="fb-cell fb-label">Then</div>
+              <div class="fb-cell fb-body">push to &quot;approved&quot; bucket.</div>
+              <div class="fb-cell fb-side">path A</div>
+            </div>
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">else</div>
+              <div class="fb-cell fb-cond">score &lt; threshold</div>
+              <div class="fb-cell fb-meta">branch</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">push to &quot;rejected&quot; bucket.</div>
+              <div class="fb-cell fb-side">path B</div>
+            </div>
+          </div>
+
+          <div class="flow-block flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">expr</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">map to simplified DTO then return.</div>
+            <div class="fb-cell fb-side">x</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A4 -->
+    <section class="pattern thin-border accent-fn" id="pattern-a4">
+      <div class="pattern-header">
+        <div class="pattern-title">A4 · Color-Coded Frames</div>
+        <div class="pattern-meta">
+          <span class="badge">Strong Borders</span>
+          <span class="badge">Per Type</span>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="flow-block flow-block-fn">
+          <div class="fb-cell fb-name">scoreOrders</div>
+          <div class="fb-cell fb-cond">(orders, threshold)</div>
+          <div class="fb-cell fb-meta">fn</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">configures scoring rules and kicks off loop.</div>
+          <div class="fb-cell fb-side">entry</div>
+        </div>
+
+        <div class="linked-pair">
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">if</div>
+            <div class="fb-cell fb-cond">score ≥ threshold</div>
+            <div class="fb-cell fb-meta">✓</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">emit &quot;good&quot; score result.</div>
+            <div class="fb-cell fb-side">ok</div>
+          </div>
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">else</div>
+            <div class="fb-cell fb-cond">score &lt; threshold</div>
+            <div class="fb-cell fb-meta">✕</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">emit &quot;needs review&quot; tag.</div>
+            <div class="fb-cell fb-side">warn</div>
+          </div>
+        </div>
+
+        <div class="flow-block flow-block-loop">
+          <div class="fb-cell fb-name">for-of</div>
+          <div class="fb-cell fb-cond">for (order of orders)</div>
+          <div class="fb-cell fb-meta">loop</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">calculate score and route into branch.</div>
+          <div class="fb-cell fb-side">fan-out</div>
+        </div>
+
+        <div class="flow-block flow-block-pipe">
+          <div class="fb-cell fb-name">pipe</div>
+          <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+          <div class="fb-cell fb-meta">pipeline</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">x is the narrowed set for reporting.</div>
+          <div class="fb-cell fb-side">result</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A5 -->
+    <section class="pattern" id="pattern-a5">
+      <div class="pattern-header">
+        <div class="pattern-title">A5 · Rail with Crisp Cards</div>
+        <div class="pattern-meta">
+          <span class="badge">Wide</span>
+          <span class="badge">Rail</span>
+        </div>
+      </div>
+      <div class="canvas rail-layout">
+        <div class="rail">
+          <span>fn</span>
+          <span>if / else</span>
+          <span>loop</span>
+          <span>pipe</span>
+        </div>
+        <div>
+          <div class="flow-block flow-block-fn">
+            <div class="fb-cell fb-name">scoreOrders</div>
+            <div class="fb-cell fb-cond">(orders, threshold)</div>
+            <div class="fb-cell fb-meta">fn</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">initialises scoring and orchestrates flow.</div>
+            <div class="fb-cell fb-side">entry</div>
+          </div>
+
+          <div class="linked-pair">
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">if</div>
+              <div class="fb-cell fb-cond">score ≥ threshold</div>
+              <div class="fb-cell fb-meta">branch</div>
+              <div class="fb-cell fb-label">Then</div>
+              <div class="fb-cell fb-body">include in high-score bucket.</div>
+              <div class="fb-cell fb-side">upper</div>
+            </div>
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">else</div>
+              <div class="fb-cell fb-cond">score &lt; threshold</div>
+              <div class="fb-cell fb-meta">branch</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">mark as low-score.</div>
+              <div class="fb-cell fb-side">lower</div>
+            </div>
+          </div>
+
+          <div class="flow-block flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">loop</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">invoke scorer and branch for each order.</div>
+            <div class="fb-cell fb-side">fan-out</div>
+          </div>
+
+          <div class="flow-block flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">expr</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">x accumulates approved orders only.</div>
+            <div class="fb-cell fb-side">x</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A6 -->
+    <section class="pattern" id="pattern-a6">
+      <div class="pattern-header">
+        <div class="pattern-title">A6 · Split Detail / Summary</div>
+        <div class="pattern-meta">
+          <span class="badge">Wide</span>
+          <span class="badge">Split</span>
+        </div>
+      </div>
+      <div class="canvas p-split">
+        <div>
+          <div class="section-label">Control Detail</div>
+
+          <div class="flow-block flow-block-fn">
+            <div class="fb-cell fb-name">scoreOrders</div>
+            <div class="fb-cell fb-cond">(orders, threshold)</div>
+            <div class="fb-cell fb-meta">fn</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">resolve config, open scoring session.</div>
+            <div class="fb-cell fb-side">config</div>
+          </div>
+
+          <div class="linked-pair">
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">if</div>
+              <div class="fb-cell fb-cond">score ≥ threshold</div>
+              <div class="fb-cell fb-meta">✓</div>
+              <div class="fb-cell fb-label">Then</div>
+              <div class="fb-cell fb-body">approve order.</div>
+              <div class="fb-cell fb-side">ok</div>
+            </div>
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">else</div>
+              <div class="fb-cell fb-cond">score &lt; threshold</div>
+              <div class="fb-cell fb-meta">!</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">reject or mark for review.</div>
+              <div class="fb-cell fb-side">warn</div>
+            </div>
+          </div>
+
+          <div class="flow-block flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">loop</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">for each order, route via branch above.</div>
+            <div class="fb-cell fb-side">dispatch</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-label">Pipeline Summary</div>
+          <div class="flow-block flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">expr</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">x = scores.filter(isGoodScore).</div>
+            <div class="fb-cell fb-side">result</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A7 -->
+    <section class="pattern" id="pattern-a7">
+      <div class="pattern-header">
+        <div class="pattern-title">A7 · Compact Control Strip</div>
+        <div class="pattern-meta">
+          <span class="badge">Very Wide</span>
+          <span class="badge">Strip</span>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="p-wide-row">
+          <div class="flow-block compact flow-block-fn">
+            <div class="fb-cell fb-name">scoreOrders</div>
+            <div class="fb-cell fb-cond">(orders, threshold)</div>
+            <div class="fb-cell fb-meta">fn</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">prepares scoring &amp; returns x.</div>
+            <div class="fb-cell fb-side">entry</div>
+          </div>
+
+          <div class="flow-block compact flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">loop</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">score, then branch.</div>
+            <div class="fb-cell fb-side">core loop</div>
+          </div>
+
+          <div class="linked-pair" style="flex:1.3;">
+            <div class="flow-block compact flow-block-if">
+              <div class="fb-cell fb-name">if</div>
+              <div class="fb-cell fb-cond">score ≥ threshold</div>
+              <div class="fb-cell fb-meta">ok</div>
+              <div class="fb-cell fb-label">Then</div>
+              <div class="fb-cell fb-body">include in filtered result.</div>
+              <div class="fb-cell fb-side">A</div>
+            </div>
+            <div class="flow-block compact flow-block-if">
+              <div class="fb-cell fb-name">else</div>
+              <div class="fb-cell fb-cond">score &lt; threshold</div>
+              <div class="fb-cell fb-meta">skip</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">omit from x.</div>
+              <div class="fb-cell fb-side">B</div>
+            </div>
+          </div>
+
+          <div class="flow-block compact flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">expr</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">x is final good-order list.</div>
+            <div class="fb-cell fb-side">x</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A8 -->
+    <section class="pattern" id="pattern-a8">
+      <div class="pattern-header">
+        <div class="pattern-title">A8 · Minimal Cells, Strong Frame</div>
+        <div class="pattern-meta">
+          <span class="badge">Compact</span>
+          <span class="badge">High Contrast</span>
+        </div>
+      </div>
+      <div class="canvas flow-block-label-only">
+        <div class="flow-block flow-block-fn">
+          <div class="fb-cell fb-name">scoreOrders</div>
+          <div class="fb-cell fb-cond">(orders, threshold)</div>
+          <div class="fb-cell fb-meta">fn</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">config + scoring orchestration.</div>
+          <div class="fb-cell fb-side">entry</div>
+        </div>
+
+        <div class="linked-pair">
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">if</div>
+            <div class="fb-cell fb-cond">score ≥ threshold</div>
+            <div class="fb-cell fb-meta">branch</div>
+            <div class="fb-cell fb-label">Then</div>
+            <div class="fb-cell fb-body">route to &quot;good&quot; stream.</div>
+            <div class="fb-cell fb-side">A</div>
+          </div>
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">else</div>
+            <div class="fb-cell fb-cond">otherwise</div>
+            <div class="fb-cell fb-meta">branch</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">route to &quot;bad&quot; stream.</div>
+            <div class="fb-cell fb-side">B</div>
+          </div>
+        </div>
+
+        <div class="flow-block flow-block-loop">
+          <div class="fb-cell fb-name">for-of</div>
+          <div class="fb-cell fb-cond">for (order of orders)</div>
+          <div class="fb-cell fb-meta">loop</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">enumerate, score, branch.</div>
+          <div class="fb-cell fb-side">loop</div>
+        </div>
+
+        <div class="flow-block flow-block-pipe">
+          <div class="fb-cell fb-name">pipe</div>
+          <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+          <div class="fb-cell fb-meta">expr</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">x is the narrowed data view.</div>
+          <div class="fb-cell fb-side">x</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A9 -->
+    <section class="pattern" id="pattern-a9">
+      <div class="pattern-header">
+        <div class="pattern-title">A9 · Dense Grid Panel</div>
+        <div class="pattern-meta">
+          <span class="badge">Compact</span>
+          <span class="badge">Grid</span>
+        </div>
+      </div>
+      <div class="canvas two-column">
+        <div>
+          <div class="flow-block flow-block-fn">
+            <div class="fb-cell fb-name">scoreOrders</div>
+            <div class="fb-cell fb-cond">(orders, threshold)</div>
+            <div class="fb-cell fb-meta">fn</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">setup + call scoring pipeline.</div>
+            <div class="fb-cell fb-side">entry</div>
+          </div>
+
+          <div class="flow-block flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">loop</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">score and branch.</div>
+            <div class="fb-cell fb-side">iter</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="linked-pair">
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">if</div>
+              <div class="fb-cell fb-cond">score ≥ threshold</div>
+              <div class="fb-cell fb-meta">A</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">accept.</div>
+              <div class="fb-cell fb-side">ok</div>
+            </div>
+            <div class="flow-block flow-block-if">
+              <div class="fb-cell fb-name">else</div>
+              <div class="fb-cell fb-cond">otherwise</div>
+              <div class="fb-cell fb-meta">B</div>
+              <div class="fb-cell fb-label">Body</div>
+              <div class="fb-cell fb-body">reject.</div>
+              <div class="fb-cell fb-side">no</div>
+            </div>
+          </div>
+
+          <div class="flow-block flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">expr</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">x is final.</div>
+            <div class="fb-cell fb-side">x</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATTERN A10 -->
+    <section class="pattern" id="pattern-a10">
+      <div class="pattern-header">
+        <div class="pattern-title">A10 · Tight Storyboard</div>
+        <div class="pattern-meta">
+          <span class="badge">Storyboard</span>
+          <span class="badge">Linear</span>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="section-label">1 · Function</div>
+        <div class="flow-block flow-block-fn">
+          <div class="fb-cell fb-name">scoreOrders</div>
+          <div class="fb-cell fb-cond">(orders, threshold)</div>
+          <div class="fb-cell fb-meta">step 1</div>
+          <div class="fb-cell fb-label">Body</div>
+          <div class="fb-cell fb-body">entry: orchestrates scoring.</div>
+          <div class="fb-cell fb-side">fn</div>
+        </div>
+
+        <div class="section-label">2 · Branch</div>
+        <div class="linked-pair">
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">if</div>
+            <div class="fb-cell fb-cond">score ≥ threshold</div>
+            <div class="fb-cell fb-meta">step 2A</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">route to goodOrders.</div>
+            <div class="fb-cell fb-side">A</div>
+          </div>
+          <div class="flow-block flow-block-if">
+            <div class="fb-cell fb-name">else</div>
+            <div class="fb-cell fb-cond">otherwise</div>
+            <div class="fb-cell fb-meta">step 2B</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">route to rejected.</div>
+            <div class="fb-cell fb-side">B</div>
+          </div>
+        </div>
+
+        <div class="section-label">3 · Loop &amp; Pipe</div>
+        <div class="p-wide-row">
+          <div class="flow-block compact flow-block-loop">
+            <div class="fb-cell fb-name">for-of</div>
+            <div class="fb-cell fb-cond">for (order of orders)</div>
+            <div class="fb-cell fb-meta">step 3</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">applies branch per order.</div>
+            <div class="fb-cell fb-side">loop</div>
+          </div>
+          <div class="flow-block compact flow-block-pipe">
+            <div class="fb-cell fb-name">pipe</div>
+            <div class="fb-cell fb-cond">data.filter(c =&gt; c.isGood)</div>
+            <div class="fb-cell fb-meta">step 4</div>
+            <div class="fb-cell fb-label">Body</div>
+            <div class="fb-cell fb-body">x is final stream.</div>
+            <div class="fb-cell fb-side">done</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>
