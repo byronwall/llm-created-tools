@@ -794,6 +794,24 @@
           if (keys.includes('message')) return String(entry.message);
           if (keys.includes('msg')) return String(entry.msg);
           if (keys.includes('event')) return String(entry.event);
+          // Prefer payload[0] if available to provide a meaningful message
+          if (Array.isArray(entry.payload) && entry.payload.length > 0) {
+            const p0 = entry.payload[0];
+            if (typeof p0 === 'string') return p0;
+            if (typeof p0 === 'number' || typeof p0 === 'boolean') return String(p0);
+            if (p0 && typeof p0 === 'object') {
+              // Try common message-like fields inside payload[0]
+              if ('title' in p0) return String(p0.title);
+              if ('message' in p0) return String(p0.message);
+              if ('msg' in p0) return String(p0.msg);
+              if ('event' in p0) return String(p0.event);
+              if ('path' in p0) return String(p0.path);
+              try {
+                return JSON.stringify(p0);
+              } catch {}
+              return '[object]';
+            }
+          }
           return keys.slice(0, 3).join(', ');
         }
         return String(entry || '');
