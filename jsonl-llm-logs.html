@@ -40,16 +40,23 @@
     /* Layout */
     .app{
       display:grid;
-      grid-template-columns: 1fr 420px;
+      grid-template-columns: 320px 1fr 420px;
+      grid-template-rows: auto 1fr;
+      align-content: start;
       gap: 14px;
       height:100vh;
       padding: 14px;
-      max-width: 1600px;
-      margin: 0 auto;
+      width: 100vw;
+      max-width: none;
+      margin: 0;
+    }
+    @media (max-width: 1350px){
+      .app{ grid-template-columns: 280px 1fr 420px; }
     }
     @media (max-width: 1100px){
-      .app{ grid-template-columns: 1fr; }
+      .app{ grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
       .drawer{ position: fixed; right: 12px; left: 12px; top: 72px; bottom: 12px; }
+      .filePane{ max-height: 240px; }
     }
 
     /* Header */
@@ -360,6 +367,92 @@
       flex-direction: column;
       min-height: 0;
     }
+
+    /* File pane */
+    .filePane{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .filePaneHeader{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .filePaneHeader h2{
+      margin:0;
+      font-size: 14px;
+      font-weight: 780;
+      letter-spacing: .1px;
+    }
+    .filePaneHeader p{
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: var(--muted2);
+      line-height: 1.35;
+    }
+    .filePaneBody{
+      padding: 10px 10px 12px 10px;
+      overflow:auto;
+      min-height: 0;
+    }
+    .fileItem{
+      border:1px solid var(--border);
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 10px 10px;
+      margin-bottom: 10px;
+      cursor:pointer;
+      transition: transform .06s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .fileItem:hover{
+      transform: translateY(-1px);
+      border-color: #d7def0;
+      box-shadow: 0 12px 26px rgba(2,6,23,.06);
+    }
+    .fileItem.selected{
+      border-color: rgba(37,99,235,.45);
+      box-shadow: 0 0 0 6px rgba(37,99,235,.10);
+    }
+    .fileItemTop{
+      display:flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items:flex-start;
+    }
+    .fileItemTop > div{ min-width: 0; }
+    .fileItemName{
+      font-weight: 760;
+      font-size: 13px;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fileItemPath{
+      margin-top: 4px;
+      color: var(--muted2);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fileItemChips{ margin-top: 8px; display:flex; flex-wrap: wrap; gap: 6px; }
+    .filePaneEmpty{
+      padding: 12px 4px;
+      color: var(--muted2);
+      font-size: 13px;
+      line-height: 1.45;
+    }
     .drawerHeader{
       padding: 12px 14px;
       border-bottom: 1px solid var(--border);
@@ -510,7 +603,7 @@
         <div class="logo" aria-hidden="true"></div>
         <div>
           <h1>JSONL Timeline Viewer</h1>
-          <p>Drop a JSONL file • Click cards for details</p>
+          <p>Drop a JSONL file or folder • Click cards for details</p>
         </div>
       </div>
 
@@ -524,20 +617,37 @@
         <button id="pickFileBtn" class="btnPrimary" type="button">
           <span aria-hidden="true">📄</span> Choose JSONL
         </button>
+        <button id="pickDirBtn" type="button" title="Choose a folder of JSONL logs">
+          <span aria-hidden="true">📁</span> Choose Folder
+        </button>
         <button id="sortBtn" type="button" title="Toggle file order">
           <span aria-hidden="true">↕️</span> Top → Bottom
         </button>
         <input id="fileInput" type="file" accept=".jsonl,.txt,application/json,text/plain" hidden />
+        <input id="dirInput" type="file" webkitdirectory directory multiple hidden />
       </div>
 
       <div class="pillRow" id="kindPills"></div>
     </div>
 
+    <aside class="filePane" id="filePane">
+      <div class="filePaneHeader">
+        <div>
+          <h2>Files</h2>
+          <p id="filePaneSubtitle">Load a folder to browse multiple logs.</p>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="clearDirBtn" type="button" title="Clear folder listing">✕</button>
+        </div>
+      </div>
+      <div class="filePaneBody" id="fileList"></div>
+    </aside>
+
     <div class="main">
       <div id="dropzone" class="dropzone">
         <div>
-          <strong>Drop a JSONL file here</strong>
-          <small>Each line should be a JSON object. Malformed lines will be flagged.</small>
+          <strong>Drop a JSONL file (or folder) here</strong>
+          <small>Each line should be a JSON object. Malformed lines will be flagged. Use “Choose Folder” to load a directory.</small>
         </div>
         <div class="pillRow">
           <span class="metaStat"><span class="dot"></span> Timeline</span>
@@ -596,8 +706,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="pageDropOverlay" class="pageDropOverlay" aria-hidden="true">
     <div class="pageDropOverlayInner">
-      Drop JSONL anywhere to load
-      <small>Tip: You can also click “Choose JSONL”.</small>
+      Drop JSONL (or a folder) anywhere to load
+      <small>Tip: You can also click “Choose JSONL” or “Choose Folder”.</small>
     </div>
   </div>
 
@@ -858,11 +968,17 @@
     let activeKinds = new Set(); // if empty => show all
     let sortAsc = true;      // file order: top->bottom
 
+    // Directory / multi-file state
+    let directoryEntries = []; // [{ file, relPath, size, lastModified, records?, errors? }]
+    let selectedFileKey = null;
+
     // ---------- UI Refs ----------
     const timelineEl = $("#timeline");
     const dropzoneEl = $("#dropzone");
     const fileInputEl = $("#fileInput");
+    const dirInputEl = $("#dirInput");
     const pickFileBtn = $("#pickFileBtn");
+    const pickDirBtn = $("#pickDirBtn");
     const searchInput = $("#searchInput");
     const kindPillsEl = $("#kindPills");
     const sortBtn = $("#sortBtn");
@@ -872,12 +988,156 @@
     const fileNameEl = $("#fileName");
     const pageDropOverlayEl = $("#pageDropOverlay");
 
+    const fileListEl = $("#fileList");
+    const filePaneSubtitleEl = $("#filePaneSubtitle");
+    const clearDirBtn = $("#clearDirBtn");
+
     const drawerEl = $("#drawer");
     const drawerTitle = $("#drawerTitle");
     const drawerSubtitle = $("#drawerSubtitle");
     const drawerBody = $("#drawerBody");
     const copyBtn = $("#copyBtn");
     const closeBtn = $("#closeBtn");
+
+    // ---------- Directory helpers ----------
+    const fmtBytes = (bytes) => {
+      if (bytes == null || Number.isNaN(bytes)) return "";
+      const kb = bytes / 1024;
+      if (kb < 1024) return `${Math.round(kb).toLocaleString()} KB`;
+      const mb = kb / 1024;
+      if (mb < 1024) return `${mb.toFixed(1).toLocaleString()} MB`;
+      const gb = mb / 1024;
+      return `${gb.toFixed(2).toLocaleString()} GB`;
+    };
+
+    const fileKeyForEntry = (entry) => entry?.relPath || entry?.file?.webkitRelativePath || entry?.file?.name;
+    const baseName = (p) => {
+      const s = (p || "").toString();
+      const parts = s.split("/").filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : s;
+    };
+    const dirNameFromRelPath = (relPath) => {
+      const s = (relPath || "").toString();
+      const parts = s.split("/").filter(Boolean);
+      return parts.length > 1 ? parts[0] : null;
+    };
+
+    function setDirectoryEntries(entries, { autoOpenFirst = true } = {}){
+      directoryEntries = (entries || [])
+        .filter(e => e?.file)
+        // Keep jsonl-ish files (plus .txt) when browsing folder; still allow manual load via single-file.
+        .filter(e => {
+          const n = (e.relPath || e.file.name || "").toLowerCase();
+          return n.endsWith(".jsonl") || n.endsWith(".json") || n.endsWith(".txt");
+        })
+        .sort((a,b) => (a.relPath || a.file.name).localeCompare((b.relPath || b.file.name)));
+
+      selectedFileKey = null;
+
+      const folderLabel = directoryEntries.length ? (dirNameFromRelPath(directoryEntries[0].relPath) || "Folder") : "Folder";
+      filePaneSubtitleEl.textContent = directoryEntries.length
+        ? `${folderLabel} • ${directoryEntries.length.toLocaleString()} file(s)`
+        : "Load a folder to browse multiple logs.";
+
+      renderFileList();
+
+      if (autoOpenFirst && directoryEntries.length){
+        // Prefer the newest file by lastModified if present
+        const newest = [...directoryEntries].sort((a,b) => (b.file.lastModified || 0) - (a.file.lastModified || 0))[0];
+        openEntry(newest);
+      }
+    }
+
+    function clearDirectory(){
+      directoryEntries = [];
+      selectedFileKey = null;
+      filePaneSubtitleEl.textContent = "Load a folder to browse multiple logs.";
+      renderFileList();
+    }
+
+    function renderFileList(){
+      fileListEl.innerHTML = "";
+
+      if (!directoryEntries.length){
+        const empty = document.createElement("div");
+        empty.className = "filePaneEmpty";
+        empty.innerHTML = `
+          <div style="font-weight:750; color: var(--text);">No folder loaded</div>
+          <div style="margin-top:6px;">Click <span class="kbd">Choose Folder</span> to load a directory of JSONL logs.</div>
+          <div style="margin-top:6px;">Single-file drop still works.</div>
+        `;
+        fileListEl.appendChild(empty);
+        return;
+      }
+
+      for (const entry of directoryEntries){
+        const key = fileKeyForEntry(entry);
+        const rel = entry.relPath || entry.file.webkitRelativePath || entry.file.name;
+        const name = baseName(rel);
+        const pathOnly = rel.includes("/") ? rel.split("/").slice(0,-1).join("/") : "";
+
+        const item = document.createElement("div");
+        item.className = "fileItem" + (selectedFileKey === key ? " selected" : "");
+        item.setAttribute("role","button");
+        item.setAttribute("tabindex","0");
+        item.title = rel;
+
+        const top = document.createElement("div");
+        top.className = "fileItemTop";
+        const left = document.createElement("div");
+        left.style.flex = "1";
+        left.style.minWidth = "0";
+        const title = document.createElement("div");
+        title.className = "fileItemName";
+        title.textContent = name;
+        title.title = name;
+        left.appendChild(title);
+        if (pathOnly){
+          const path = document.createElement("div");
+          path.className = "fileItemPath";
+          path.textContent = pathOnly;
+          path.title = pathOnly;
+          left.appendChild(path);
+        }
+        top.appendChild(left);
+        item.appendChild(top);
+
+        const chips = document.createElement("div");
+        chips.className = "fileItemChips";
+
+        const addChip = (label, tone = "gray") => {
+          const chip = document.createElement("span");
+          chip.className = `chip ${tone}`;
+          chip.textContent = label;
+          chips.appendChild(chip);
+        };
+
+        addChip(fmtBytes(entry.file.size), "gray");
+        if (entry.file.lastModified) addChip(new Date(entry.file.lastModified).toLocaleString(), "gray");
+        if (typeof entry.records === "number") addChip(`${entry.records} rec`, "blue");
+        if (typeof entry.errors === "number" && entry.errors > 0) addChip(`${entry.errors} errors`, "orange");
+
+        item.appendChild(chips);
+
+        const open = () => openEntry(entry);
+        item.addEventListener("click", open);
+        item.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " "){
+            e.preventDefault();
+            open();
+          }
+        });
+
+        fileListEl.appendChild(item);
+      }
+    }
+
+    function updateEntryStats(fileKey, { records, errors }){
+      const idx = directoryEntries.findIndex(e => fileKeyForEntry(e) === fileKey);
+      if (idx === -1) return;
+      directoryEntries[idx] = { ...directoryEntries[idx], records, errors };
+      renderFileList();
+    }
 
     // ---------- Parsing ----------
     async function parseJsonl(text){
@@ -1181,14 +1441,47 @@
 
     // ---------- Events ----------
     pickFileBtn.addEventListener("click", () => fileInputEl.click());
+    pickDirBtn.addEventListener("click", () => dirInputEl.click());
+
     fileInputEl.addEventListener("change", async () => {
       const f = fileInputEl.files?.[0];
       if (!f) return;
-      await loadFile(f);
+      clearDirectory();
+      await loadFile({ file: f, relPath: f.name });
       fileInputEl.value = "";
     });
 
-    async function loadFile(file){
+    dirInputEl.addEventListener("change", async () => {
+      const files = Array.from(dirInputEl.files || []);
+      if (!files.length) return;
+      const entries = files.map(f => ({
+        file: f,
+        relPath: f.webkitRelativePath || f.name,
+        size: f.size,
+        lastModified: f.lastModified
+      }));
+      setDirectoryEntries(entries, { autoOpenFirst: true });
+      dirInputEl.value = "";
+      toast(`Loaded folder with ${directoryEntries.length} file(s).`);
+    });
+
+    clearDirBtn.addEventListener("click", () => {
+      clearDirectory();
+      toast("Cleared folder listing.");
+    });
+
+    async function openEntry(entry){
+      const key = fileKeyForEntry(entry);
+      selectedFileKey = key;
+      renderFileList();
+      await loadFile(entry);
+    }
+
+    async function loadFile(entry){
+      const file = entry?.file;
+      if (!file) return;
+
+      const relPath = entry?.relPath || file.webkitRelativePath || file.name;
       const text = await file.text();
       const { parsed, errors } = await parseJsonl(text);
 
@@ -1196,13 +1489,76 @@
       selectedIdx = null;
       activeKinds.clear();
 
-      fileNameEl.textContent = `${file.name} • ${Math.round(file.size/1024).toLocaleString()} KB`;
+      fileNameEl.textContent = `${relPath} • ${fmtBytes(file.size)}`;
       rebuildKindPills();
       applyFilters();
       renderDrawer(null);
 
+      if (directoryEntries.length){
+        updateEntryStats(fileKeyForEntry({ file, relPath }), { records: all.length, errors });
+      }
+
       if (errors) toast(`Loaded with ${errors} parse error(s).`);
       else toast(`Loaded ${all.length} record(s).`);
+    }
+
+    // Drag & Drop helpers
+    const fileFromFileEntry = (fileEntry) => new Promise((resolve, reject) => {
+      try{
+        fileEntry.file(resolve, reject);
+      }catch(err){
+        reject(err);
+      }
+    });
+
+    const readAllDirectoryEntries = (directoryReader) => new Promise((resolve, reject) => {
+      const all = [];
+      const read = () => {
+        directoryReader.readEntries((entries) => {
+          if (!entries.length) return resolve(all);
+          all.push(...entries);
+          read();
+        }, reject);
+      };
+      read();
+    });
+
+    async function entriesFromDataTransfer(dataTransfer){
+      const items = Array.from(dataTransfer?.items || []);
+      const canUseEntries = items.length && typeof items[0]?.webkitGetAsEntry === "function";
+
+      if (!canUseEntries){
+        const files = Array.from(dataTransfer?.files || []);
+        return files.map(f => ({ file: f, relPath: f.name, size: f.size, lastModified: f.lastModified }));
+      }
+
+      const out = [];
+      const walk = async (entry, prefix) => {
+        if (!entry) return;
+        if (entry.isFile){
+          const f = await fileFromFileEntry(entry);
+          const relPath = (prefix ? `${prefix}/` : "") + f.name;
+          out.push({ file: f, relPath, size: f.size, lastModified: f.lastModified });
+          return;
+        }
+        if (entry.isDirectory){
+          const reader = entry.createReader();
+          const children = await readAllDirectoryEntries(reader);
+          const nextPrefix = (prefix ? `${prefix}/` : "") + entry.name;
+          for (const child of children) await walk(child, nextPrefix);
+        }
+      };
+
+      for (const item of items){
+        const entry = item.webkitGetAsEntry?.();
+        if (entry) await walk(entry, "");
+      }
+
+      // If the drag contained a single file, keep relPath simple.
+      if (out.length === 1){
+        out[0].relPath = out[0].file.name;
+      }
+      return out;
     }
 
     // Drag & Drop (whole page)
@@ -1243,9 +1599,20 @@
       e.preventDefault();
       dragDepth = 0;
       setDraggingUi(false);
-      const file = e.dataTransfer?.files?.[0];
-      if (!file) return;
-      await loadFile(file);
+
+      const entries = await entriesFromDataTransfer(e.dataTransfer);
+      if (!entries.length) return;
+
+      if (entries.length === 1){
+        // Single file: behave like before
+        clearDirectory();
+        await loadFile(entries[0]);
+        return;
+      }
+
+      // Multiple files (often a folder): populate list and auto-open the newest
+      setDirectoryEntries(entries, { autoOpenFirst: true });
+      toast(`Loaded ${directoryEntries.length} file(s) from drop.`);
     });
 
     window.addEventListener("dragend", () => {
