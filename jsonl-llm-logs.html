@@ -1,0 +1,1302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JSONL Timeline Viewer</title>
+  <style>
+    :root{
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --panel2: #fbfcff;
+      --text: #0f172a;
+      --muted: #475569;
+      --muted2:#64748b;
+      --border:#e2e8f0;
+      --shadow: 0 10px 30px rgba(2,6,23,.08);
+      --shadow2: 0 8px 20px rgba(2,6,23,.06);
+      --accent:#2563eb;
+      --accent2:#1d4ed8;
+      --chip:#eef2ff;
+      --chipText:#1e3a8a;
+      --danger:#dc2626;
+      --ok:#16a34a;
+      --warn:#f59e0b;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      color: var(--text);
+      background: radial-gradient(1000px 600px at 20% 0%, #e8efff 0%, rgba(232,239,255,0) 60%),
+                  radial-gradient(900px 500px at 90% 10%, #e9f7ff 0%, rgba(233,247,255,0) 55%),
+                  var(--bg);
+    }
+
+    /* Layout */
+    .app{
+      display:grid;
+      grid-template-columns: 1fr 420px;
+      gap: 14px;
+      height:100vh;
+      padding: 14px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    @media (max-width: 1100px){
+      .app{ grid-template-columns: 1fr; }
+      .drawer{ position: fixed; right: 12px; left: 12px; top: 72px; bottom: 12px; }
+    }
+
+    /* Header */
+    .topbar{
+      grid-column: 1 / -1;
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      padding: 12px 14px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(10px);
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      min-width: 220px;
+    }
+    .logo{
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #22c55e);
+      box-shadow: 0 12px 25px rgba(37,99,235,.25);
+    }
+    .brand h1{
+      margin:0;
+      font-size: 15px;
+      font-weight: 750;
+      letter-spacing: .2px;
+      line-height: 1.1;
+    }
+    .brand p{
+      margin:0;
+      font-size: 12px;
+      color: var(--muted2);
+    }
+
+    .controls{
+      flex:1;
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+
+    .search{
+      flex: 1;
+      min-width: 260px;
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      padding: 10px 12px;
+      border:1px solid var(--border);
+      background: var(--panel);
+      border-radius: 12px;
+    }
+    .search input{
+      border:0;
+      outline:0;
+      width:100%;
+      font-size: 14px;
+      color: var(--text);
+      background: transparent;
+    }
+    .search .hint{
+      font-size: 12px;
+      color: var(--muted2);
+      white-space: nowrap;
+    }
+
+    button, .btn{
+      border:1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 650;
+      font-size: 13px;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      user-select:none;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    button:hover, .btn:hover{
+      background: #f5f7ff;
+      border-color: #d7def0;
+    }
+    button:active, .btn:active{
+      transform: translateY(1px);
+    }
+    .btnPrimary{
+      background: linear-gradient(135deg, rgba(37,99,235,.12), rgba(34,197,94,.10));
+      border-color: rgba(37,99,235,.25);
+    }
+    .btnPrimary:hover{
+      border-color: rgba(37,99,235,.35);
+      background: linear-gradient(135deg, rgba(37,99,235,.16), rgba(34,197,94,.12));
+    }
+
+    .pillRow{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+    .pill{
+      font-size: 12px;
+      font-weight: 650;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      cursor:pointer;
+      user-select:none;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .pill.active{
+      background: var(--chip);
+      border-color: rgba(37,99,235,.22);
+      color: var(--chipText);
+    }
+
+    /* Main timeline */
+    .main{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.70);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .dropzone{
+      margin: 14px;
+      border: 1.5px dashed #cbd5e1;
+      background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(250,252,255,.9));
+      border-radius: 14px;
+      padding: 16px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .dropzone strong{ font-size: 14px; }
+    .dropzone small{ color: var(--muted2); display:block; margin-top: 4px; }
+    .dropzone.drag{
+      border-color: rgba(37,99,235,.55);
+      box-shadow: 0 0 0 6px rgba(37,99,235,.10);
+      background: #f2f6ff;
+    }
+
+    .metaBar{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 14px 12px 14px;
+      color: var(--muted2);
+      font-size: 12px;
+    }
+    .metaBar .left{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+    .metaStat{
+      display:flex;
+      align-items:center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .dot{
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .timelineWrap{
+      position: relative;
+      padding: 10px 14px 18px 14px;
+      overflow:auto;
+      min-height: 0;
+    }
+    .timeline{
+      position: relative;
+      padding-left: 24px;
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .timeline::before{
+      content:"";
+      position:absolute;
+      left: 10px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, rgba(37,99,235,.45), rgba(34,197,94,.30));
+      border-radius: 10px;
+    }
+
+    .card{
+      position: relative;
+      border:1px solid var(--border);
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 12px 12px 12px 12px;
+      box-shadow: 0 10px 20px rgba(2,6,23,.04);
+      cursor:pointer;
+      transition: transform .06s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .card:hover{
+      transform: translateY(-1px);
+      border-color: #d7def0;
+      box-shadow: 0 12px 26px rgba(2,6,23,.06);
+    }
+    .card.selected{
+      border-color: rgba(37,99,235,.45);
+      box-shadow: 0 0 0 6px rgba(37,99,235,.10);
+    }
+
+    .pin{
+      position:absolute;
+      left: -22px;
+      top: 14px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.9);
+      box-shadow: 0 6px 14px rgba(2,6,23,.14);
+      background: var(--accent);
+    }
+    .pin.k_tool_definition{ background: #7c3aed; }
+    .pin.k_request{ background: #2563eb; }
+    .pin.k_response{ background: #16a34a; }
+    .pin.k_tool-call{ background: #f59e0b; }
+    .pin.k_tool-return{ background: #0ea5e9; }
+    .pin.k_unknown{ background: #94a3b8; }
+
+    .row1{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .title{
+      font-weight: 760;
+      font-size: 14px;
+      letter-spacing: .1px;
+      line-height: 1.2;
+    }
+    .subtitle{
+      margin-top: 4px;
+      color: var(--muted2);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .ts{
+      color: var(--muted2);
+      font-size: 12px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chips{
+      margin-top: 10px;
+      display:flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip{
+      font-size: 11px;
+      font-weight: 650;
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip.blue{ background: #eef2ff; border-color: rgba(37,99,235,.20); color: #1e3a8a; }
+    .chip.green{ background: #ecfdf5; border-color: rgba(22,163,74,.22); color: #065f46; }
+    .chip.orange{ background: #fff7ed; border-color: rgba(245,158,11,.22); color: #7c2d12; }
+    .chip.gray{ background: #f1f5f9; border-color: rgba(148,163,184,.25); color:#334155; }
+
+    /* Drawer */
+    .drawer{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .drawerHeader{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .drawerHeader h2{
+      margin:0;
+      font-size: 14px;
+      font-weight: 780;
+      letter-spacing: .1px;
+    }
+    .drawerHeader p{
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: var(--muted2);
+      line-height: 1.35;
+    }
+    .drawerBody{
+      padding: 12px 14px;
+      overflow:auto;
+      min-height: 0;
+    }
+    .kv{
+      display:grid;
+      grid-template-columns: 130px 1fr;
+      gap: 10px 12px;
+      padding: 10px 12px;
+      border:1px solid var(--border);
+      background: var(--panel);
+      border-radius: 14px;
+    }
+    .kv .k{
+      color: var(--muted2);
+      font-size: 12px;
+    }
+    .kv .v{
+      font-size: 12px;
+      color: var(--text);
+      font-family: var(--mono);
+      overflow-wrap: anywhere;
+    }
+    .sectionTitle{
+      margin: 14px 0 8px 0;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 750;
+      letter-spacing: .2px;
+      text-transform: uppercase;
+    }
+    pre{
+      margin:0;
+      border:1px solid var(--border);
+      background: #0b1220;
+      color: #e2e8f0;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      overflow:auto;
+      box-shadow: 0 12px 20px rgba(2,6,23,.15) inset;
+    }
+    /* Keep page light: code block is dark for readability, but everything else is light. */
+
+    .emptyState{
+      padding: 18px 14px;
+      color: var(--muted2);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .errorLine{
+      border: 1px solid rgba(220,38,38,.22);
+      background: rgba(220,38,38,.06);
+      color: #7f1d1d;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    .toast{
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--text);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .toast.show{
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .pageDropOverlay{
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(2px);
+      z-index: 50;
+      pointer-events: none;
+    }
+    .pageDropOverlay.show{ display: flex; }
+    .pageDropOverlayInner{
+      pointer-events: none;
+      padding: 16px 18px;
+      border-radius: 16px;
+      border: 2px dashed rgba(37,99,235,.55);
+      background: rgba(255,255,255,.92);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-weight: 780;
+      letter-spacing: .1px;
+    }
+    .pageDropOverlayInner small{
+      display: block;
+      margin-top: 6px;
+      font-weight: 650;
+      color: var(--muted2);
+    }
+
+    .kbd{
+      font-family: var(--mono);
+      font-size: 11px;
+      border:1px solid var(--border);
+      background: #f8fafc;
+      padding: 2px 6px;
+      border-radius: 8px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>JSONL Timeline Viewer</h1>
+          <p>Drop a JSONL file • Click cards for details</p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="search" title="Search across common fields and raw JSON">
+          <span class="kbd">⌕</span>
+          <input id="searchInput" placeholder="Search (tool_name, kind, model, provider, etc.)" />
+          <span class="hint"><span class="kbd">Ctrl</span>+<span class="kbd">K</span></span>
+        </div>
+
+        <button id="pickFileBtn" class="btnPrimary" type="button">
+          <span aria-hidden="true">📄</span> Choose JSONL
+        </button>
+        <button id="sortBtn" type="button" title="Toggle file order">
+          <span aria-hidden="true">↕️</span> Top → Bottom
+        </button>
+        <input id="fileInput" type="file" accept=".jsonl,.txt,application/json,text/plain" hidden />
+      </div>
+
+      <div class="pillRow" id="kindPills"></div>
+    </div>
+
+    <div class="main">
+      <div id="dropzone" class="dropzone">
+        <div>
+          <strong>Drop a JSONL file here</strong>
+          <small>Each line should be a JSON object. Malformed lines will be flagged.</small>
+        </div>
+        <div class="pillRow">
+          <span class="metaStat"><span class="dot"></span> Timeline</span>
+          <span class="metaStat">Click a card → details</span>
+        </div>
+      </div>
+
+      <div class="metaBar">
+        <div class="left">
+          <span class="metaStat" id="statTotal">0 records</span>
+          <span class="metaStat" id="statShown">0 shown</span>
+          <span class="metaStat" id="statErrors">0 errors</span>
+        </div>
+        <div class="right" id="fileName"></div>
+      </div>
+
+      <div class="timelineWrap">
+        <div class="timeline" id="timeline"></div>
+      </div>
+    </div>
+
+    <aside class="drawer" id="drawer">
+      <div class="drawerHeader">
+        <div>
+          <h2 id="drawerTitle">No selection</h2>
+          <p id="drawerSubtitle">Click a timeline card to inspect details.</p>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="copyBtn" type="button" title="Copy the selected JSON">
+            <span aria-hidden="true">📋</span> Copy JSON
+          </button>
+          <button id="closeBtn" type="button" title="Close details">
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      </div>
+      <div class="drawerBody" id="drawerBody">
+        <div class="emptyState">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span class="metaStat"><span class="kbd">Tip</span> Use <span class="kbd">Ctrl</span>+<span class="kbd">K</span> to focus search</span>
+            <span class="metaStat"><span class="kbd">Tip</span> Filter by kind using pills</span>
+          </div>
+          <div style="margin-top:12px;">
+            This viewer tries to recognize:
+            <ul style="margin:8px 0 0 18px; color: var(--muted2);">
+              <li><span class="kbd">__record_kind</span> for record grouping</li>
+              <li><span class="kbd">kind</span> and <span class="kbd">parts[].part_kind</span> for message/call events</li>
+              <li>Records are ordered by their line index in the original JSONL file</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="pageDropOverlay" class="pageDropOverlay" aria-hidden="true">
+    <div class="pageDropOverlayInner">
+      Drop JSONL anywhere to load
+      <small>Tip: You can also click “Choose JSONL”.</small>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Helpers ----------
+    const $ = (sel) => document.querySelector(sel);
+    const escapeHtml = (s) => (s ?? "").toString()
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+
+    const safeJsonParse = (line) => {
+      try { return { ok:true, value: JSON.parse(line) }; }
+      catch (err) { return { ok:false, err }; }
+    };
+
+    const tryGet = (obj, path, fallback) => {
+      try{
+        return path.split(".").reduce((acc,k) => acc?.[k], obj) ?? fallback;
+      }catch{ return fallback; }
+    };
+
+    const toIsoish = (ts) => {
+      if (!ts) return null;
+      // Expecting either ISO string or something parseable
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString();
+    };
+
+    const shortTs = (ts) => {
+      const iso = toIsoish(ts);
+      if (!iso) return null;
+      // "2026-01-22T14:44:55.367Z" -> "2026-01-22 14:44:55.367Z"
+      return iso.replace("T"," ").replace("Z","Z");
+    };
+
+    const stableStringify = (obj) => {
+      const seen = new WeakSet();
+      const sorter = (val) => {
+        if (val && typeof val === "object"){
+          if (seen.has(val)) return "[Circular]";
+          seen.add(val);
+          if (Array.isArray(val)) return val.map(sorter);
+          const keys = Object.keys(val).sort((a,b)=>a.localeCompare(b));
+          const out = {};
+          for (const k of keys) out[k] = sorter(val[k]);
+          return out;
+        }
+        return val;
+      };
+      return JSON.stringify(sorter(obj), null, 2);
+    };
+
+    const guessKind = (rec) => {
+      // Prefer explicit __record_kind when present
+      if (typeof rec?.__record_kind === "string") return rec.__record_kind;
+
+      // Fallback: common shapes in your sample
+      if (typeof rec?.kind === "string") return rec.kind;
+
+      // Look for part_kind in parts
+      const pk = rec?.parts?.[0]?.part_kind;
+      if (typeof pk === "string") return pk;
+
+      return "unknown";
+    };
+
+    const kindClass = (k) => {
+      const normalized = (k || "unknown").toLowerCase();
+      if (normalized.includes("tool_definition")) return "k_tool_definition";
+      if (normalized === "request") return "k_request";
+      if (normalized === "response") return "k_response";
+      if (normalized === "tool-call" || normalized === "tool_call" || normalized.includes("tool-call")) return "k_tool-call";
+      if (normalized === "tool-return" || normalized === "tool_return" || normalized.includes("tool-return")) return "k_tool-return";
+      return "k_unknown";
+    };
+
+    const headlineFor = (rec) => {
+      // Make a friendly title for timeline card
+      const rk = rec?.__record_kind;
+      if (rk === "tool_definition"){
+        const name = tryGet(rec, "tool_def.name", "tool");
+        const kind = tryGet(rec, "tool_def.kind", "");
+        return `Tool Definition: ${name}${kind ? " ("+kind+")" : ""}`;
+      }
+
+      const kind = rec?.kind;
+      if (kind === "request"){
+        const runId = rec?.run_id ? ` • run ${rec.run_id}` : "";
+        const p0 = rec?.parts?.[0];
+        const pk = p0?.part_kind;
+        if (pk === "system-prompt") return `Request: System Prompt${runId}`;
+        if (pk === "user-prompt") return `Request: User Prompt${runId}`;
+        if (pk === "tool-call") return `Request: Tool Call (${p0?.tool_name || "tool"})${runId}`;
+        return `Request${runId}`;
+      }
+
+      if (kind === "response"){
+        const model = rec?.model_name ? ` • ${rec.model_name}` : "";
+        const prov = rec?.provider_name ? ` • ${rec.provider_name}` : "";
+        const finish = rec?.finish_reason ? ` • ${rec.finish_reason}` : "";
+        return `Response${model}${prov}${finish}`;
+      }
+
+      // Generic: if there's a tool_name inside parts
+      const tool = rec?.parts?.find(p => p?.tool_name)?.tool_name;
+      const pk = rec?.parts?.[0]?.part_kind;
+      if (tool) return `${pk || "tool"}: ${tool}`;
+      if (pk) return `${pk}`;
+      return guessKind(rec);
+    };
+
+    const subtitleFor = (rec) => {
+      // Small informative line under title
+      const rk = rec?.__record_kind;
+      if (rk === "tool_definition"){
+        const desc = tryGet(rec, "tool_def.description", "");
+        const schemaKeys = Object.keys(tryGet(rec, "tool_def.parameters_json_schema.properties", {}) || {});
+        const extra = schemaKeys.length ? `Params: ${schemaKeys.slice(0,6).join(", ")}${schemaKeys.length>6?"…":""}` : "No params";
+        return desc ? `${desc} • ${extra}` : extra;
+      }
+
+      const kind = rec?.kind;
+      if (kind === "request"){
+        const p0 = rec?.parts?.[0];
+        const pk = p0?.part_kind || "";
+        if (pk === "user-prompt"){
+          const content = p0?.content || "";
+          // Grab <input query="..."> if present
+          const m = content.match(/query="([^"]+)"/);
+          if (m?.[1]) return `Query: ${m[1]}`;
+          return content ? content.slice(0, 120) + (content.length>120?"…":"") : "User prompt";
+        }
+        if (pk === "system-prompt"){
+          const content = p0?.content || "";
+          return content ? content.slice(0, 140) + (content.length>140?"…":"") : "System prompt";
+        }
+        if (pk === "tool-call"){
+          return p0?.args ? `Args: ${String(p0.args).slice(0, 140)}${String(p0.args).length>140?"…":""}` : "Tool call";
+        }
+        return "Request record";
+      }
+
+      if (kind === "response"){
+        const tokensIn = tryGet(rec, "usage.input_tokens", null);
+        const tokensOut = tryGet(rec, "usage.output_tokens", null);
+        const cacheR = tryGet(rec, "usage.cache_read_tokens", null);
+        const cacheW = tryGet(rec, "usage.cache_write_tokens", null);
+
+        const bits = [];
+        if (tokensIn != null) bits.push(`in ${tokensIn}`);
+        if (tokensOut != null) bits.push(`out ${tokensOut}`);
+        if (cacheR != null && cacheR !== 0) bits.push(`cacheR ${cacheR}`);
+        if (cacheW != null && cacheW !== 0) bits.push(`cacheW ${cacheW}`);
+
+        const p0 = rec?.parts?.[0];
+        if (p0?.part_kind === "tool-call") bits.push(`tool-call: ${p0.tool_name || "tool"}`);
+        return bits.length ? bits.join(" • ") : "Response record";
+      }
+
+      // Tool return or other
+      const p0 = rec?.parts?.[0];
+      if (p0?.part_kind === "tool-return"){
+        const tool = p0?.tool_name || "tool";
+        const hasContent = typeof p0?.content === "string" && p0.content.length > 0;
+        return `${tool} returned${hasContent ? ` • ${p0.content.slice(0, 140)}${p0.content.length>140?"…":""}` : ""}`;
+      }
+
+      return "Record";
+    };
+
+    const chipsFor = (rec) => {
+      const chips = [];
+      const kind = guessKind(rec);
+
+      // Common
+      if (kind) chips.push({ label: kind, tone: "gray" });
+
+      const ts = rec?.timestamp;
+      const t = shortTs(ts);
+      if (t) chips.push({ label: t, tone: "gray" });
+
+      // Tool definition
+      if (rec?.__record_kind === "tool_definition"){
+        const name = tryGet(rec, "tool_def.name", null);
+        const k = tryGet(rec, "tool_def.kind", null);
+        if (name) chips.push({ label: name, tone: "blue" });
+        if (k) chips.push({ label: k, tone: "blue" });
+      }
+
+      // Request/Response
+      if (rec?.run_id) chips.push({ label: `run_id ${rec.run_id.slice(0,8)}…`, tone: "gray" });
+      if (rec?.model_name) chips.push({ label: rec.model_name, tone: "blue" });
+      if (rec?.provider_name) chips.push({ label: rec.provider_name, tone: "blue" });
+      if (rec?.finish_reason) chips.push({ label: `finish ${rec.finish_reason}`, tone: "orange" });
+
+      // Tool call specifics
+      const toolCall = rec?.parts?.find(p => p?.part_kind === "tool-call");
+      if (toolCall?.tool_name) chips.push({ label: `tool ${toolCall.tool_name}`, tone: "orange" });
+
+      const toolRet = rec?.parts?.find(p => p?.part_kind === "tool-return");
+      if (toolRet?.tool_name) chips.push({ label: `return ${toolRet.tool_name}`, tone: "green" });
+
+      // Token usage
+      const u = rec?.usage;
+      if (u?.input_tokens != null) chips.push({ label: `in ${u.input_tokens}`, tone: "gray" });
+      if (u?.output_tokens != null) chips.push({ label: `out ${u.output_tokens}`, tone: "gray" });
+
+      // De-dupe by label
+      const seen = new Set();
+      return chips.filter(c => (seen.has(c.label) ? false : (seen.add(c.label), true))).slice(0, 10);
+    };
+
+    const recordSearchText = (rec) => {
+      // Build a low-cost search blob
+      const bits = [];
+      const k = guessKind(rec);
+      bits.push(k);
+
+      if (rec?.__record_kind) bits.push(rec.__record_kind);
+      if (rec?.kind) bits.push(rec.kind);
+      if (rec?.model_name) bits.push(rec.model_name);
+      if (rec?.provider_name) bits.push(rec.provider_name);
+      if (rec?.finish_reason) bits.push(rec.finish_reason);
+      if (rec?.run_id) bits.push(rec.run_id);
+
+      const tdName = tryGet(rec, "tool_def.name", null);
+      if (tdName) bits.push(tdName);
+
+      for (const p of rec?.parts || []){
+        if (p?.part_kind) bits.push(p.part_kind);
+        if (p?.tool_name) bits.push(p.tool_name);
+        if (typeof p?.content === "string") bits.push(p.content.slice(0, 300));
+        if (typeof p?.args === "string") bits.push(p.args.slice(0, 300));
+      }
+
+      // Include raw JSON for odd fields (still fine for a few thousand records)
+      bits.push(stableStringify(rec).slice(0, 4000));
+
+      return bits.join(" ").toLowerCase();
+    };
+
+    const toast = (() => {
+      let tId = null;
+      return (msg) => {
+        const el = $("#toast");
+        el.textContent = msg;
+        el.classList.add("show");
+        clearTimeout(tId);
+        tId = setTimeout(() => el.classList.remove("show"), 1600);
+      };
+    })();
+
+    // ---------- State ----------
+    let all = [];            // parsed records {rec, idx, error?}
+    let view = [];           // filtered records
+    let selectedIdx = null;  // index into view array
+    let activeKinds = new Set(); // if empty => show all
+    let sortAsc = true;      // file order: top->bottom
+
+    // ---------- UI Refs ----------
+    const timelineEl = $("#timeline");
+    const dropzoneEl = $("#dropzone");
+    const fileInputEl = $("#fileInput");
+    const pickFileBtn = $("#pickFileBtn");
+    const searchInput = $("#searchInput");
+    const kindPillsEl = $("#kindPills");
+    const sortBtn = $("#sortBtn");
+    const statTotal = $("#statTotal");
+    const statShown = $("#statShown");
+    const statErrors = $("#statErrors");
+    const fileNameEl = $("#fileName");
+    const pageDropOverlayEl = $("#pageDropOverlay");
+
+    const drawerEl = $("#drawer");
+    const drawerTitle = $("#drawerTitle");
+    const drawerSubtitle = $("#drawerSubtitle");
+    const drawerBody = $("#drawerBody");
+    const copyBtn = $("#copyBtn");
+    const closeBtn = $("#closeBtn");
+
+    // ---------- Parsing ----------
+    async function parseJsonl(text){
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+      const parsed = [];
+      let errors = 0;
+
+      for (let i=0; i<lines.length; i++){
+        const line = lines[i].trim();
+        const res = safeJsonParse(line);
+        if (!res.ok){
+          errors++;
+          parsed.push({
+            idx: i,
+            rec: { __parse_error: true, __line: i+1, __raw: line, __error: String(res.err) },
+            error: true
+          });
+          continue;
+        }
+        parsed.push({ idx: i, rec: res.value, error: false });
+      }
+
+      // Attach computed fields for filtering/sorting
+      for (const item of parsed){
+        const rec = item.rec;
+        item._kind = guessKind(rec);
+        item._ts = toIsoish(rec?.timestamp) || null;
+        item._headline = headlineFor(rec);
+        item._subtitle = subtitleFor(rec);
+        item._search = recordSearchText(rec);
+      }
+
+      return { parsed, errors };
+    }
+
+    // ---------- Filtering / Sorting ----------
+    function applyFilters(){
+      const q = (searchInput.value || "").trim().toLowerCase();
+
+      view = all.filter(item => {
+        if (activeKinds.size > 0 && !activeKinds.has(item._kind)) return false;
+        if (!q) return true;
+        return item._search.includes(q);
+      });
+
+      // Always sort by original JSONL line index (file order).
+      const dir = sortAsc ? 1 : -1;
+      view.sort((a,b) => {
+        return (a.idx - b.idx) * dir;
+      });
+
+      // Maintain selection if possible
+      if (selectedIdx != null){
+        const selected = view[selectedIdx];
+        if (!selected){
+          selectedIdx = null;
+          renderDrawer(null);
+        }
+      }
+
+      renderStats();
+      renderTimeline();
+    }
+
+    function rebuildKindPills(){
+      const counts = new Map();
+      for (const item of all){
+        counts.set(item._kind, (counts.get(item._kind) || 0) + 1);
+      }
+      const kinds = [...counts.keys()].sort((a,b)=>a.localeCompare(b));
+
+      kindPillsEl.innerHTML = "";
+      for (const k of kinds){
+        const pill = document.createElement("div");
+        pill.className = "pill" + (activeKinds.has(k) ? " active" : "");
+        pill.textContent = `${k} (${counts.get(k)})`;
+        pill.title = "Toggle kind filter";
+        pill.addEventListener("click", () => {
+          if (activeKinds.has(k)) activeKinds.delete(k);
+          else activeKinds.add(k);
+          rebuildKindPills();
+          applyFilters();
+        });
+        kindPillsEl.appendChild(pill);
+      }
+
+      // Add "Clear" if active
+      if (activeKinds.size > 0){
+        const clear = document.createElement("div");
+        clear.className = "pill active";
+        clear.textContent = "Clear filters";
+        clear.title = "Clear kind filters";
+        clear.addEventListener("click", () => {
+          activeKinds.clear();
+          rebuildKindPills();
+          applyFilters();
+        });
+        kindPillsEl.prepend(clear);
+      }
+    }
+
+    function renderStats(){
+      statTotal.textContent = `${all.length} records`;
+      statShown.textContent = `${view.length} shown`;
+      const errCount = all.filter(x => x.error).length;
+      statErrors.textContent = `${errCount} errors`;
+    }
+
+    // ---------- Render Timeline ----------
+    function renderTimeline(){
+      timelineEl.innerHTML = "";
+
+      if (view.length === 0){
+        const empty = document.createElement("div");
+        empty.className = "emptyState";
+        empty.innerHTML = `
+          <div style="font-weight:750; color: var(--text);">No records match your filters.</div>
+          <div style="margin-top:6px;">Try clearing kind filters or adjusting search.</div>
+        `;
+        timelineEl.appendChild(empty);
+        return;
+      }
+
+      for (let i=0; i<view.length; i++){
+        const item = view[i];
+        const rec = item.rec;
+        const card = document.createElement("div");
+        card.className = "card" + (i === selectedIdx ? " selected" : "");
+        card.setAttribute("role","button");
+        card.setAttribute("tabindex","0");
+
+        const pin = document.createElement("div");
+        pin.className = `pin ${kindClass(item._kind)}`;
+        card.appendChild(pin);
+
+        const row1 = document.createElement("div");
+        row1.className = "row1";
+
+        const left = document.createElement("div");
+        const title = document.createElement("div");
+        title.className = "title";
+        title.textContent = item._headline;
+
+        const subtitle = document.createElement("div");
+        subtitle.className = "subtitle";
+        subtitle.textContent = item._subtitle;
+
+        left.appendChild(title);
+        left.appendChild(subtitle);
+
+        const ts = document.createElement("div");
+        ts.className = "ts";
+        ts.textContent = shortTs(rec?.timestamp) || "";
+
+        row1.appendChild(left);
+        row1.appendChild(ts);
+
+        card.appendChild(row1);
+
+        const chips = document.createElement("div");
+        chips.className = "chips";
+        for (const c of chipsFor(rec)){
+          const chip = document.createElement("span");
+          chip.className = `chip ${c.tone || "gray"}`;
+          chip.textContent = c.label;
+          chips.appendChild(chip);
+        }
+        card.appendChild(chips);
+
+        if (item.error){
+          const err = document.createElement("div");
+          err.className = "errorLine";
+          err.textContent = `Line ${rec.__line}: ${rec.__error}`;
+          card.appendChild(err);
+        }
+
+        const select = () => {
+          selectedIdx = i;
+          renderTimeline(); // to update selected style
+          renderDrawer(item);
+        };
+
+        card.addEventListener("click", select);
+        card.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " "){
+            e.preventDefault();
+            select();
+          }
+        });
+
+        timelineEl.appendChild(card);
+      }
+    }
+
+    // ---------- Drawer ----------
+    function renderDrawer(item){
+      if (!item){
+        drawerTitle.textContent = "No selection";
+        drawerSubtitle.textContent = "Click a timeline card to inspect details.";
+        copyBtn.disabled = true;
+        drawerBody.innerHTML = `
+          <div class="emptyState">
+            Click a card on the left to view details here.
+          </div>
+        `;
+        return;
+      }
+
+      const rec = item.rec;
+      const k = item._kind;
+
+      drawerTitle.textContent = item._headline;
+      drawerSubtitle.textContent = `${k}${rec?.timestamp ? " • " + (shortTs(rec.timestamp) || rec.timestamp) : ""}`;
+      copyBtn.disabled = false;
+
+      const kvRows = [];
+
+      const addKV = (key, val) => {
+        if (val == null) return;
+        kvRows.push({ key, val: String(val) });
+      };
+
+      addKV("kind", k);
+      addKV("__record_kind", rec?.__record_kind);
+      addKV("timestamp", rec?.timestamp);
+      addKV("run_id", rec?.run_id);
+      addKV("model_name", rec?.model_name);
+      addKV("provider", rec?.provider_name);
+      addKV("finish_reason", rec?.finish_reason);
+
+      // If it has parts, show first part summary
+      const p0 = rec?.parts?.[0];
+      if (p0){
+        addKV("part_kind", p0?.part_kind);
+        addKV("tool_name", p0?.tool_name);
+        addKV("tool_call_id", p0?.tool_call_id);
+      }
+
+      // Token usage summary
+      const u = rec?.usage;
+      if (u){
+        addKV("input_tokens", u.input_tokens);
+        addKV("output_tokens", u.output_tokens);
+        addKV("cache_read", u.cache_read_tokens);
+        addKV("cache_write", u.cache_write_tokens);
+      }
+
+      const kvHtml = kvRows.length
+        ? `<div class="kv">${kvRows.map(r => `
+            <div class="k">${escapeHtml(r.key)}</div>
+            <div class="v">${escapeHtml(r.val)}</div>
+          `).join("")}</div>`
+        : `<div class="emptyState">No structured fields detected.</div>`;
+
+      const raw = stableStringify(rec);
+
+      // Also show extracted "parts" in a friendly way if present
+      let partsSection = "";
+      if (Array.isArray(rec?.parts) && rec.parts.length){
+        const parts = rec.parts.map((p, idx) => {
+          const lines = [];
+          if (p.part_kind) lines.push(["part_kind", p.part_kind]);
+          if (p.tool_name) lines.push(["tool_name", p.tool_name]);
+          if (p.tool_call_id) lines.push(["tool_call_id", p.tool_call_id]);
+          if (p.id) lines.push(["id", p.id]);
+          if (typeof p.args === "string") lines.push(["args", p.args]);
+          if (typeof p.content === "string") lines.push(["content", p.content]);
+
+          const pretty = lines.map(([a,b]) => `<div style="margin-top:6px;">
+              <div style="color:var(--muted2); font-size:12px; font-weight:750;">${escapeHtml(a)}</div>
+              <div style="font-family:var(--mono); font-size:12px; overflow-wrap:anywhere; color:var(--text); background:var(--panel2); border:1px solid var(--border); padding:10px; border-radius:12px; margin-top:4px;">
+                ${escapeHtml(b).replaceAll("\n","<br/>")}
+              </div>
+            </div>`).join("");
+
+          return `<div style="border:1px solid var(--border); background: var(--panel); border-radius:14px; padding:10px 12px; margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-weight:780;">Part #${idx+1}</div>
+              <div style="color:var(--muted2); font-size:12px;">${escapeHtml(p.part_kind || "")}</div>
+            </div>
+            ${pretty || `<div style="color:var(--muted2); font-size:12px; margin-top:6px;">No displayable fields.</div>`}
+          </div>`;
+        }).join("");
+
+        partsSection = `
+          <div class="sectionTitle">Parts</div>
+          ${parts}
+        `;
+      }
+
+      drawerBody.innerHTML = `
+        <div class="sectionTitle">Key fields</div>
+        ${kvHtml}
+
+        ${partsSection}
+
+        <div class="sectionTitle">Raw JSON</div>
+        <pre id="rawPre">${escapeHtml(raw)}</pre>
+      `;
+    }
+
+    // ---------- Events ----------
+    pickFileBtn.addEventListener("click", () => fileInputEl.click());
+    fileInputEl.addEventListener("change", async () => {
+      const f = fileInputEl.files?.[0];
+      if (!f) return;
+      await loadFile(f);
+      fileInputEl.value = "";
+    });
+
+    async function loadFile(file){
+      const text = await file.text();
+      const { parsed, errors } = await parseJsonl(text);
+
+      all = parsed;
+      selectedIdx = null;
+      activeKinds.clear();
+
+      fileNameEl.textContent = `${file.name} • ${Math.round(file.size/1024).toLocaleString()} KB`;
+      rebuildKindPills();
+      applyFilters();
+      renderDrawer(null);
+
+      if (errors) toast(`Loaded with ${errors} parse error(s).`);
+      else toast(`Loaded ${all.length} record(s).`);
+    }
+
+    // Drag & Drop (whole page)
+    const isFileDragEvent = (e) => {
+      const types = e?.dataTransfer?.types;
+      if (!types) return false;
+      if (typeof types.contains === "function") return types.contains("Files");
+      return Array.from(types).includes("Files");
+    };
+
+    let dragDepth = 0;
+    const setDraggingUi = (on) => {
+      pageDropOverlayEl.classList.toggle("show", on);
+      dropzoneEl.classList.toggle("drag", on);
+    };
+
+    window.addEventListener("dragenter", (e) => {
+      if (!isFileDragEvent(e)) return;
+      e.preventDefault();
+      dragDepth++;
+      setDraggingUi(true);
+    });
+
+    window.addEventListener("dragover", (e) => {
+      if (!isFileDragEvent(e)) return;
+      e.preventDefault();
+      setDraggingUi(true);
+    });
+
+    window.addEventListener("dragleave", (e) => {
+      if (!isFileDragEvent(e)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) setDraggingUi(false);
+    });
+
+    window.addEventListener("drop", async (e) => {
+      if (!isFileDragEvent(e)) return;
+      e.preventDefault();
+      dragDepth = 0;
+      setDraggingUi(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      await loadFile(file);
+    });
+
+    window.addEventListener("dragend", () => {
+      dragDepth = 0;
+      setDraggingUi(false);
+    });
+
+    // Search
+    searchInput.addEventListener("input", () => applyFilters());
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k"){
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+      // basic up/down navigation when focused in timeline
+      if (e.key === "Escape"){
+        if (document.activeElement === searchInput) searchInput.blur();
+      }
+    });
+
+    // Sort toggle
+    sortBtn.addEventListener("click", () => {
+      sortAsc = !sortAsc;
+      sortBtn.innerHTML = `<span aria-hidden="true">↕️</span> ${sortAsc ? "Top → Bottom" : "Bottom → Top"}`;
+      applyFilters();
+    });
+
+    // Drawer controls
+    closeBtn.addEventListener("click", () => {
+      selectedIdx = null;
+      renderTimeline();
+      renderDrawer(null);
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      if (selectedIdx == null || !view[selectedIdx]) return;
+      const rec = view[selectedIdx].rec;
+      try{
+        await navigator.clipboard.writeText(stableStringify(rec));
+        toast("Copied JSON to clipboard.");
+      }catch{
+        toast("Copy failed (clipboard blocked).");
+      }
+    });
+
+    // Boot empty
+    rebuildKindPills();
+    renderStats();
+    renderTimeline();
+    renderDrawer(null);
+  </script>
+</body>
+</html>
