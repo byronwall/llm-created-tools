@@ -1,0 +1,3727 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edge Effects — gradients, rails, bevels, masks, noise</title>
+    <style>
+      :root {
+        color-scheme: light;
+
+        /* Theme tokens (light defaults) */
+        --page-bg: #f6f7fb;
+        --page-bg-2: #ffffff;
+        --panel: rgba(255, 255, 255, 0.75);
+        --panel-2: rgba(255, 255, 255, 0.62);
+        --text: #0f172a;
+        --muted: rgba(15, 23, 42, 0.65);
+        --muted-2: rgba(15, 23, 42, 0.45);
+        --border: rgba(2, 6, 23, 0.12);
+        --border-strong: rgba(2, 6, 23, 0.18);
+        --shadow: rgba(2, 6, 23, 0.12);
+        --shadow-2: rgba(2, 6, 23, 0.1);
+        --accent: #6d5efc;
+        --accent-2: #00c2ff;
+        --ok: #16a34a;
+        --warn: #f59e0b;
+
+        /* Builder variables (set by JS via CSS vars) */
+        --fx-radius: 14px;
+        --fx-pad-x: 14px;
+        --fx-pad-y: 12px;
+        --fx-elev-tight-y: 1px;
+        --fx-elev-tight-blur: 2px;
+        --fx-elev-soft-y: 18px;
+        --fx-elev-soft-blur: 46px;
+        --fx-elev-tight-a: 0.06;
+        --fx-elev-soft-a: 0.09;
+
+        --fx-surface: #ffffff;
+        --fx-surface-2: #f7f8ff;
+        --fx-surface-grad: 0.35; /* 0..1 */
+
+        --fx-inner-border-on: 1;
+        --fx-inner-border-color: rgba(2, 6, 23, 0.08);
+        --fx-top-hi-on: 1;
+        --fx-top-hi-color: rgba(255, 255, 255, 0.75);
+        --fx-bottom-sh-on: 1;
+        --fx-bottom-sh-color: rgba(2, 6, 23, 0.1);
+
+        --fx-noise-on: 1;
+        --fx-noise-strength: 0.06; /* 0..0.18 works */
+
+        --fx-vignette-on: 1;
+        --fx-vignette-a: 0.06; /* used directly as alpha */
+        --fx-vignette-focus: 0.62; /* 0..1 */
+
+        /* Rail (vertical hierarchy indicator) */
+        --rail-mode: b; /* a inset-shadow, b pseudo+mask, c background layer */
+        --rail-feel: glow; /* glow | crease */
+
+        --rail-accent: rgba(109, 94, 252, 0.62);
+        --rail-core: rgba(109, 94, 252, 0.78);
+        --rail-halo: rgba(109, 94, 252, 0.24);
+        --rail-core-w: 1px;
+        --rail-total-w: 4px;
+        --rail-strip-w: 18px; /* width of the effect area to the right */
+        --rail-x: 10px;
+        --rail-fade: 10px;
+        --rail-blur: 0.35px;
+        --rail-jitter: 0px;
+
+        --rail-depth-step: 14px;
+        --rail-alpha-base: 0.52;
+        --rail-alpha-decay: 0.09;
+        --rail-max-depth: 5;
+
+        /* Edge placement + border stroke (used on .fx-card/.edge-card) */
+        --edge-stroke-on: 0;
+        --edge-stroke-w: 1px;
+        --edge-stroke-color: rgba(2, 6, 23, 0.14);
+
+        /* Comment layout */
+        --comment-gap: 10px;
+        --comment-bg: rgba(255, 255, 255, 0.86);
+        --comment-bg-2: rgba(255, 255, 255, 0.62);
+        --comment-border: rgba(2, 6, 23, 0.1);
+        --comment-title: rgba(2, 6, 23, 0.88);
+        --comment-body: rgba(2, 6, 23, 0.62);
+
+        /* Code blocks */
+        --code-bg: rgba(2, 6, 23, 0.06);
+        --code-border: rgba(2, 6, 23, 0.12);
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+
+        --page-bg: #070a13;
+        --page-bg-2: #0b1020;
+        --panel: rgba(11, 16, 32, 0.72);
+        --panel-2: rgba(11, 16, 32, 0.58);
+        --text: rgba(236, 242, 255, 0.92);
+        --muted: rgba(236, 242, 255, 0.64);
+        --muted-2: rgba(236, 242, 255, 0.44);
+        --border: rgba(236, 242, 255, 0.12);
+        --border-strong: rgba(236, 242, 255, 0.18);
+        --shadow: rgba(0, 0, 0, 0.55);
+        --shadow-2: rgba(0, 0, 0, 0.4);
+
+        --fx-surface: #0d1326;
+        --fx-surface-2: #0b1020;
+        --fx-inner-border-color: rgba(236, 242, 255, 0.1);
+        --fx-top-hi-color: rgba(255, 255, 255, 0.1);
+        --fx-bottom-sh-color: rgba(0, 0, 0, 0.35);
+
+        --comment-bg: rgba(11, 16, 32, 0.78);
+        --comment-bg-2: rgba(11, 16, 32, 0.58);
+        --comment-border: rgba(236, 242, 255, 0.12);
+        --comment-title: rgba(236, 242, 255, 0.92);
+        --comment-body: rgba(236, 242, 255, 0.68);
+
+        --code-bg: rgba(0, 0, 0, 0.3);
+        --code-border: rgba(236, 242, 255, 0.12);
+
+        --edge-stroke-color: rgba(236, 242, 255, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter,
+          "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+          "Segoe UI Emoji", "Segoe UI Symbol";
+        color: var(--text);
+        background: radial-gradient(
+            1200px 900px at 18% 4%,
+            color-mix(in oklab, var(--page-bg-2) 92%, var(--accent) 8%) 0%,
+            transparent 64%
+          ),
+          radial-gradient(
+            1100px 900px at 92% 0%,
+            color-mix(in oklab, var(--page-bg-2) 92%, var(--accent-2) 8%) 0%,
+            transparent 58%
+          ),
+          radial-gradient(
+            1100px 1000px at 64% 90%,
+            color-mix(in oklab, var(--page-bg-2) 94%, var(--accent) 6%) 0%,
+            transparent 66%
+          ),
+          linear-gradient(180deg, var(--page-bg-2), var(--page-bg));
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .app {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(
+          180deg,
+          color-mix(in oklab, var(--panel) 95%, transparent 5%),
+          color-mix(in oklab, var(--panel-2) 92%, transparent 8%)
+        );
+        backdrop-filter: blur(10px) saturate(1.12);
+      }
+
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        min-width: 260px;
+      }
+
+      .brand-title {
+        font-size: 14px;
+        margin: 0;
+        font-weight: 720;
+        letter-spacing: 0.18px;
+      }
+
+      .brand-sub {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0;
+        white-space: nowrap;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 80%, transparent 20%);
+        backdrop-filter: blur(10px) saturate(1.12);
+      }
+
+      .pill input[type="search"] {
+        width: 320px;
+        max-width: 52vw;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .pill input[type="search"]::placeholder {
+        color: var(--muted-2);
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: linear-gradient(
+          180deg,
+          color-mix(in oklab, var(--panel) 82%, transparent 18%),
+          color-mix(in oklab, var(--panel-2) 78%, transparent 22%)
+        );
+        color: var(--text);
+        padding: 9px 12px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: transform 0.05s ease, border-color 0.15s ease,
+          background 0.15s ease;
+        font-size: 13px;
+        line-height: 1;
+        user-select: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn:hover {
+        border-color: var(--border-strong);
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn.primary {
+        border-color: color-mix(in oklab, var(--accent) 50%, var(--border));
+        background: linear-gradient(
+          180deg,
+          color-mix(in oklab, var(--accent) 20%, var(--panel)),
+          color-mix(in oklab, var(--accent) 10%, var(--panel-2))
+        );
+      }
+
+      .btn.ghost {
+        background: transparent;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        min-height: 0;
+      }
+
+      @media (max-width: 1060px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .sidebar {
+        min-height: 0;
+        border-right: 1px solid var(--border);
+        background: linear-gradient(
+          180deg,
+          color-mix(in oklab, var(--panel) 82%, transparent 18%),
+          transparent
+        );
+        backdrop-filter: blur(10px) saturate(1.05);
+      }
+
+      @media (max-width: 1060px) {
+        .sidebar {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+      }
+
+      .sidebar-inner {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        min-height: 0;
+      }
+
+      .sidebar-head {
+        padding: 14px 14px 10px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .sidebar-head h2 {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .sidebar-head .count {
+        font-size: 12px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: color-mix(in oklab, var(--panel) 70%, transparent 30%);
+      }
+
+      .sidebar-sub {
+        padding: 0 14px 12px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .sidebar-sub .small {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.3;
+      }
+
+      .example-list {
+        padding: 0 10px 12px;
+        overflow: auto;
+      }
+
+      .example-group {
+        margin: 10px 0 14px;
+        padding: 0 4px;
+      }
+
+      .example-group-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted-2);
+        padding: 6px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .example {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 10px;
+        border-radius: 14px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        background: transparent;
+        transition: background 0.12s ease, border-color 0.12s ease,
+          transform 0.06s ease;
+      }
+
+      .example:hover {
+        background: color-mix(in oklab, var(--panel) 72%, transparent 28%);
+        border-color: var(--border);
+      }
+
+      .example:active {
+        transform: translateY(1px);
+      }
+
+      .example[data-active="true"] {
+        background: color-mix(in oklab, var(--panel) 82%, transparent 18%);
+        border-color: color-mix(in oklab, var(--accent) 35%, var(--border));
+        box-shadow: 0 0 0 1px
+          color-mix(in oklab, var(--accent) 30%, transparent) inset;
+      }
+
+      .example-title {
+        font-size: 13px;
+        font-weight: 650;
+        color: var(--text);
+        margin: 0;
+      }
+
+      .example-desc {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 3px 0 0;
+        line-height: 1.35;
+      }
+
+      .chips {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .chip {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 72%, transparent 28%);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .chip.accent {
+        border-color: color-mix(in oklab, var(--accent) 50%, var(--border));
+        color: color-mix(in oklab, var(--accent) 65%, var(--text));
+      }
+
+      .sidebar-foot {
+        padding: 12px 14px 14px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.02));
+      }
+
+      .sidebar-foot .hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .main {
+        min-height: 0;
+        overflow: auto;
+        padding: 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      @media (max-width: 1060px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: linear-gradient(
+          180deg,
+          color-mix(in oklab, var(--panel) 88%, transparent 12%),
+          color-mix(in oklab, var(--panel-2) 84%, transparent 16%)
+        );
+        backdrop-filter: blur(10px) saturate(1.08);
+        box-shadow: 0 18px 44px var(--shadow-2);
+        overflow: clip;
+      }
+
+      .panel-header {
+        padding: 14px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 720;
+        letter-spacing: 0.18px;
+      }
+
+      .panel-header .sub {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .panel-body {
+        padding: 14px;
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .fieldset {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 12px;
+        background: color-mix(in oklab, var(--panel) 70%, transparent 30%);
+      }
+
+      .fieldset > legend {
+        padding: 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      @media (max-width: 520px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .field {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .field label .value {
+        font-variant-numeric: tabular-nums;
+        color: var(--text);
+        opacity: 0.82;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      input[type="number"],
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 72%, transparent 28%);
+        color: var(--text);
+        outline: none;
+      }
+
+      input[type="number"]:focus,
+      input[type="text"]:focus,
+      select:focus {
+        border-color: color-mix(in oklab, var(--accent) 40%, var(--border));
+        box-shadow: 0 0 0 3px
+          color-mix(in oklab, var(--accent) 16%, transparent);
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 70%, transparent 30%);
+      }
+
+      .toggle .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .toggle .meta .t {
+        font-size: 12px;
+        color: var(--text);
+        font-weight: 650;
+      }
+
+      .toggle .meta .d {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.25;
+      }
+
+      .toggle input {
+        width: 18px;
+        height: 18px;
+      }
+
+      .color-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .color-row .color {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      input[type="color"] {
+        width: 44px;
+        height: 34px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: transparent;
+        padding: 0;
+        overflow: hidden;
+        cursor: pointer;
+      }
+
+      .swatches {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .swatch {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        cursor: pointer;
+        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+      }
+
+      .stage {
+        display: grid;
+        gap: 14px;
+      }
+
+      .stage-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .stage-note {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+
+      .stage-surface {
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: radial-gradient(
+            900px 420px at 30% 0%,
+            color-mix(in oklab, var(--panel) 78%, transparent 22%) 0%,
+            transparent 64%
+          ),
+          radial-gradient(
+            900px 420px at 80% 20%,
+            color-mix(in oklab, var(--panel) 76%, transparent 24%) 0%,
+            transparent 60%
+          ),
+          linear-gradient(
+            180deg,
+            color-mix(in oklab, var(--panel) 60%, transparent 40%),
+            transparent
+          );
+        padding: 14px;
+      }
+
+      /* ===== Generated preview element ===== */
+      .fx-card,
+      .edge-card {
+        position: relative;
+        border-radius: var(--fx-radius);
+        padding: var(--fx-pad-y) var(--fx-pad-x);
+        background:
+          /* Edge stroke (optional; controlled by --edge-stroke-on + data-edge) */
+            linear-gradient(
+                to right,
+                color-mix(
+                  in oklab,
+                  transparent,
+                  var(--edge-stroke-color)
+                    calc(var(--edge-stroke-on) * var(--edge-l) * 100%)
+                ),
+                rgba(0, 0, 0, 0)
+              )
+              left / var(--edge-stroke-w) 100% no-repeat,
+          linear-gradient(
+              to left,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--edge-stroke-color)
+                  calc(var(--edge-stroke-on) * var(--edge-r) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            right / var(--edge-stroke-w) 100% no-repeat,
+          linear-gradient(
+              to bottom,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--edge-stroke-color)
+                  calc(var(--edge-stroke-on) * var(--edge-t) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            top / 100% var(--edge-stroke-w) no-repeat,
+          linear-gradient(
+              to top,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--edge-stroke-color)
+                  calc(var(--edge-stroke-on) * var(--edge-b) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            bottom / 100% var(--edge-stroke-w) no-repeat,
+          radial-gradient(
+            140% 120% at 60% calc(var(--fx-vignette-focus) * 100%),
+            rgba(255, 255, 255, 0) 0%,
+            rgba(2, 6, 23, calc(var(--fx-vignette-on) * var(--fx-vignette-a)))
+              100%
+          ),
+          linear-gradient(
+            180deg,
+            color-mix(
+              in oklab,
+              var(--fx-surface) calc((1 - var(--fx-surface-grad)) * 100%),
+              var(--fx-surface-2) calc(var(--fx-surface-grad) * 100%)
+            ),
+            var(--fx-surface)
+          )
+          padding-box;
+        overflow: hidden; /* needed for masked pseudo rail + noise */
+
+        /* Multi-layer contact shadow + optional inner layers */
+        box-shadow:
+          /* contact */
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          /* lift */
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          /* inner border */
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          /* top highlight */
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          /* bottom shade */
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      /* Edge placement (applies to rail techniques A/B/C on cards) */
+      .fx-card,
+      .edge-card {
+        /* left-only default to match existing presets */
+        --edge-l: 1;
+        --edge-r: 0;
+        --edge-t: 0;
+        --edge-b: 0;
+      }
+      .fx-card[data-edge="left"],
+      .edge-card[data-edge="left"] {
+        --edge-l: 1;
+        --edge-r: 0;
+        --edge-t: 0;
+        --edge-b: 0;
+      }
+      .fx-card[data-edge="right"],
+      .edge-card[data-edge="right"] {
+        --edge-l: 0;
+        --edge-r: 1;
+        --edge-t: 0;
+        --edge-b: 0;
+      }
+      .fx-card[data-edge="top"],
+      .edge-card[data-edge="top"] {
+        --edge-l: 0;
+        --edge-r: 0;
+        --edge-t: 1;
+        --edge-b: 0;
+      }
+      .fx-card[data-edge="bottom"],
+      .edge-card[data-edge="bottom"] {
+        --edge-l: 0;
+        --edge-r: 0;
+        --edge-t: 0;
+        --edge-b: 1;
+      }
+      .fx-card[data-edge="lr"],
+      .edge-card[data-edge="lr"] {
+        --edge-l: 1;
+        --edge-r: 1;
+        --edge-t: 0;
+        --edge-b: 0;
+      }
+      .fx-card[data-edge="tb"],
+      .edge-card[data-edge="tb"] {
+        --edge-l: 0;
+        --edge-r: 0;
+        --edge-t: 1;
+        --edge-b: 1;
+      }
+      .fx-card[data-edge="all"],
+      .edge-card[data-edge="all"] {
+        --edge-l: 1;
+        --edge-r: 1;
+        --edge-t: 1;
+        --edge-b: 1;
+      }
+
+      .fx-card .fx-title,
+      .edge-card .fx-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 720;
+        letter-spacing: 0.1px;
+        color: color-mix(in oklab, var(--text) 90%, transparent);
+      }
+
+      .fx-card .fx-body,
+      .edge-card .fx-body {
+        margin: 7px 0 0;
+        font-size: 13px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .fx-card .fx-meta,
+      .edge-card .fx-meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .fx-badge {
+        font-size: 11px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 70%, transparent 30%);
+        color: var(--muted);
+      }
+
+      /* Noise overlay (no external assets) */
+      .fx-card::after,
+      .edge-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: calc(var(--fx-noise-on) * var(--fx-noise-strength));
+        mix-blend-mode: overlay;
+        background-image:
+          radial-gradient(circle at 12% 18%, rgba(0, 0, 0, 0.45) 1px, transparent
+              1px),
+          radial-gradient(circle at 62% 68%, rgba(0, 0, 0, 0.35) 1px, transparent
+              1px),
+          radial-gradient(circle at 32% 52%, rgba(255, 255, 255, 0.55) 1px,
+              transparent 1px),
+          radial-gradient(circle at 78% 26%, rgba(255, 255, 255, 0.45) 1px,
+              transparent 1px);
+        background-size: 18px 18px, 22px 22px, 26px 26px, 30px 30px;
+        filter: contrast(0.9) saturate(0.9);
+      }
+
+      /* ===== Rail techniques for the fx card ===== */
+      .fx-card[data-rail="a"],
+      .edge-card[data-rail="a"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          /* soft left edge (inset) */
+          inset 12px 0 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="a"][data-edge="right"],
+      .edge-card[data-rail="a"][data-edge="right"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          /* soft right edge (inset) */
+          inset -12px 0 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="a"][data-edge="top"],
+      .edge-card[data-rail="a"][data-edge="top"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          /* soft top edge (inset) */
+          inset 0 12px 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="a"][data-edge="bottom"],
+      .edge-card[data-rail="a"][data-edge="bottom"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          /* soft bottom edge (inset) */
+          inset 0 -12px 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="a"][data-edge="lr"],
+      .edge-card[data-rail="a"][data-edge="lr"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          inset 12px 0 18px -22px var(--rail-accent),
+          inset -12px 0 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="a"][data-edge="tb"],
+      .edge-card[data-rail="a"][data-edge="tb"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          inset 0 12px 18px -22px var(--rail-accent),
+          inset 0 -12px 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="a"][data-edge="all"],
+      .edge-card[data-rail="a"][data-edge="all"] {
+        box-shadow:
+          0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur)
+            rgba(2, 6, 23, var(--fx-elev-tight-a)),
+          0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur)
+            rgba(2, 6, 23, var(--fx-elev-soft-a)),
+          inset 12px 0 18px -22px var(--rail-accent),
+          inset -12px 0 18px -22px var(--rail-accent),
+          inset 0 12px 18px -22px var(--rail-accent),
+          inset 0 -12px 18px -22px var(--rail-accent),
+          inset 0 0 0 calc(1px * var(--fx-inner-border-on))
+            var(--fx-inner-border-color),
+          inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+          inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0
+            var(--fx-bottom-sh-color);
+      }
+
+      .fx-card[data-rail="c"],
+      .edge-card[data-rail="c"] {
+        background:
+          /* edge strips */
+            linear-gradient(
+              to right,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-l) * 100%)
+              ),
+              rgba(0, 0, 0, 0) 72%
+            )
+            left / var(--rail-strip-w) 100% no-repeat,
+          linear-gradient(
+              to left,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-r) * 100%)
+              ),
+              rgba(0, 0, 0, 0) 72%
+            )
+            right / var(--rail-strip-w) 100% no-repeat,
+          linear-gradient(
+              to bottom,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-t) * 100%)
+              ),
+              rgba(0, 0, 0, 0) 72%
+            )
+            top / 100% var(--rail-strip-w) no-repeat,
+          linear-gradient(
+              to top,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-b) * 100%)
+              ),
+              rgba(0, 0, 0, 0) 72%
+            )
+            bottom / 100% var(--rail-strip-w) no-repeat,
+          radial-gradient(
+            140% 120% at 60% calc(var(--fx-vignette-focus) * 100%),
+            rgba(255, 255, 255, 0) 0%,
+            rgba(2, 6, 23, calc(var(--fx-vignette-on) * var(--fx-vignette-a)))
+              100%
+          ),
+          linear-gradient(
+              180deg,
+              color-mix(
+                in oklab,
+                var(--fx-surface) calc((1 - var(--fx-surface-grad)) * 100%),
+                var(--fx-surface-2) calc(var(--fx-surface-grad) * 100%)
+              ),
+              var(--fx-surface)
+            )
+            padding-box;
+      }
+
+      .fx-card[data-rail="b"]::before,
+      .edge-card[data-rail="b"]::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border-radius: inherit;
+
+        /* a thin core + halo that reads like a border but stays soft */
+        background:
+          /* left */
+            linear-gradient(
+                to right,
+                color-mix(
+                  in oklab,
+                  transparent,
+                  var(--rail-core) calc(var(--edge-l) * 100%)
+                ),
+                rgba(0, 0, 0, 0)
+              )
+              0 0 / var(--rail-core-w) 100% no-repeat,
+          linear-gradient(
+              to right,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-l) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            0 0 / var(--rail-total-w) 100% no-repeat,
+          /* right */
+            linear-gradient(
+                to left,
+                color-mix(
+                  in oklab,
+                  transparent,
+                  var(--rail-core) calc(var(--edge-r) * 100%)
+                ),
+                rgba(0, 0, 0, 0)
+              )
+              100% 0 / var(--rail-core-w) 100% no-repeat,
+          linear-gradient(
+              to left,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-r) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            100% 0 / var(--rail-total-w) 100% no-repeat,
+          /* top */
+            linear-gradient(
+                to bottom,
+                color-mix(
+                  in oklab,
+                  transparent,
+                  var(--rail-core) calc(var(--edge-t) * 100%)
+                ),
+                rgba(0, 0, 0, 0)
+              )
+              0 0 / 100% var(--rail-core-w) no-repeat,
+          linear-gradient(
+              to bottom,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-t) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            0 0 / 100% var(--rail-total-w) no-repeat,
+          /* bottom */
+            linear-gradient(
+                to top,
+                color-mix(
+                  in oklab,
+                  transparent,
+                  var(--rail-core) calc(var(--edge-b) * 100%)
+                ),
+                rgba(0, 0, 0, 0)
+              )
+              0 100% / 100% var(--rail-core-w) no-repeat,
+          linear-gradient(
+              to top,
+              color-mix(
+                in oklab,
+                transparent,
+                var(--rail-halo) calc(var(--edge-b) * 100%)
+              ),
+              rgba(0, 0, 0, 0)
+            )
+            0 100% / 100% var(--rail-total-w) no-repeat;
+        filter: blur(var(--rail-blur));
+
+        -webkit-mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          black var(--rail-fade),
+          black calc(100% - var(--rail-fade)),
+          transparent
+        );
+        mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          black var(--rail-fade),
+          black calc(100% - var(--rail-fade)),
+          transparent
+        );
+      }
+
+      /* If the effect is top/bottom only, fade near left/right corners instead. */
+      .fx-card[data-rail="b"][data-edge="top"]::before,
+      .edge-card[data-rail="b"][data-edge="top"]::before,
+      .fx-card[data-rail="b"][data-edge="bottom"]::before,
+      .edge-card[data-rail="b"][data-edge="bottom"]::before,
+      .fx-card[data-rail="b"][data-edge="tb"]::before,
+      .edge-card[data-rail="b"][data-edge="tb"]::before {
+        -webkit-mask-image: linear-gradient(
+          to right,
+          transparent,
+          black var(--rail-fade),
+          black calc(100% - var(--rail-fade)),
+          transparent
+        );
+        mask-image: linear-gradient(
+          to right,
+          transparent,
+          black var(--rail-fade),
+          black calc(100% - var(--rail-fade)),
+          transparent
+        );
+      }
+
+      /* ===== Nested comment demo ===== */
+      .thread {
+        display: grid;
+        gap: var(--comment-gap);
+      }
+
+      .comment {
+        position: relative;
+        border-radius: var(--fx-radius);
+        padding: 10px 12px 10px 16px;
+        background: linear-gradient(
+          180deg,
+          var(--comment-bg),
+          var(--comment-bg-2)
+        );
+        border: 1px solid var(--comment-border);
+        overflow: hidden;
+        box-shadow:
+          0 1px 1px rgba(2, 6, 23, 0.04),
+          0 12px 34px rgba(2, 6, 23, 0.06);
+      }
+
+      .comment .who {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 30%, #ffffff, #dbe3ff);
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+        flex: 0 0 auto;
+      }
+
+      [data-theme="dark"] .avatar {
+        background: radial-gradient(circle at 30% 30%, #1c2b55, #0b1020);
+        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+      }
+
+      .who .name {
+        font-weight: 700;
+        font-size: 12px;
+        color: var(--comment-title);
+      }
+
+      .who .time {
+        font-size: 12px;
+        color: var(--muted-2);
+      }
+
+      .comment .text {
+        font-size: 13px;
+        color: var(--comment-body);
+        line-height: 1.35;
+      }
+
+      .replies {
+        display: grid;
+        gap: var(--comment-gap);
+        margin-top: var(--comment-gap);
+      }
+
+      /* Rail application on comments (matches the conversation “no leakage” recipe) */
+      .comment[data-rail="b"]::before {
+        content: "";
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        left: calc(var(--rail-x) + var(--rail-jitter));
+        width: var(--rail-strip-w);
+        pointer-events: none;
+        filter: blur(var(--rail-blur));
+
+        background:
+          /* core */
+            linear-gradient(
+                to right,
+                var(--rail-core-local, var(--rail-core)),
+                rgba(0, 0, 0, 0)
+              )
+              0 0 / var(--rail-core-w) 100% no-repeat,
+          /* halo */
+            linear-gradient(
+                to right,
+                var(--rail-halo-local, var(--rail-halo)),
+                rgba(0, 0, 0, 0)
+              )
+              0 0 / var(--rail-total-w) 100% no-repeat;
+
+        -webkit-mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          black var(--rail-fade),
+          black calc(100% - var(--rail-fade)),
+          transparent
+        );
+        mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          black var(--rail-fade),
+          black calc(100% - var(--rail-fade)),
+          transparent
+        );
+      }
+
+      .comment[data-rail="a"] {
+        /* inset: cannot leak outside, but no explicit top/bottom fade */
+        box-shadow:
+          0 1px 1px rgba(2, 6, 23, 0.04),
+          0 12px 34px rgba(2, 6, 23, 0.06),
+          inset 12px 0 18px -22px var(--rail-accent);
+      }
+
+      .comment[data-rail="c"] {
+        background:
+          linear-gradient(
+              to right,
+              var(--rail-halo),
+              rgba(0, 0, 0, 0) 72%
+            )
+            left / var(--rail-strip-w) 100% no-repeat,
+          linear-gradient(
+            180deg,
+            var(--comment-bg),
+            var(--comment-bg-2)
+          );
+      }
+
+      /* Depth system: each comment has a --depth; used to move rail + reduce alpha */
+      .comment {
+        --depth: 0;
+        padding-left: calc(16px + (var(--depth) * var(--rail-depth-step)));
+      }
+
+      .comment::before {
+        /* per-depth small shift to break moiré; values set by JS */
+        content: "";
+      }
+
+      .comment[data-depth="0"] {
+        --depth: 0;
+      }
+      .comment[data-depth="1"] {
+        --depth: 1;
+      }
+      .comment[data-depth="2"] {
+        --depth: 2;
+      }
+      .comment[data-depth="3"] {
+        --depth: 3;
+      }
+      .comment[data-depth="4"] {
+        --depth: 4;
+      }
+      .comment[data-depth="5"] {
+        --depth: 5;
+      }
+
+      .comment[data-rail="b"]::before {
+        left: calc(
+          var(--rail-x) + (var(--depth) * var(--rail-depth-step)) +
+            var(--rail-jitter-local, var(--rail-jitter))
+        );
+      }
+
+      .comment[data-rail="a"],
+      .comment[data-rail="c"] {
+        /* shift background/visual rail via padding; keep simple */
+        content: "";
+      }
+
+      /* ===== Output / code ===== */
+      pre {
+        margin: 0;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid var(--code-border);
+        background: var(--code-bg);
+        overflow: auto;
+        max-height: 360px;
+        overscroll-behavior: contain;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .code-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        justify-content: space-between;
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 88%, transparent 12%);
+        backdrop-filter: blur(10px) saturate(1.12);
+        box-shadow: 0 18px 44px var(--shadow);
+        font-size: 12px;
+        color: var(--text);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+      }
+
+      .toast[data-on="true"] {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-2px);
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 12px 0;
+      }
+
+      .doc {
+        margin-top: 16px;
+        padding: 14px 14px;
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--panel) 70%, transparent 30%);
+      }
+
+      .doc h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 740;
+      }
+
+      .doc p {
+        margin: 6px 0;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .doc ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body data-theme="light">
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <h1 class="brand-title">Edge Effects</h1>
+          <p class="brand-sub">
+            Shadows · inner borders · bevels · rails · masks · noise
+          </p>
+        </div>
+
+        <div class="top-actions">
+          <div class="pill" title="Filter examples by name or tags">
+            <span style="color: var(--muted-2); font-size: 12px">Search</span>
+            <input
+              id="exampleSearch"
+              type="search"
+              placeholder="Rail, bevel, vignette, glow…"
+              autocomplete="off"
+            />
+          </div>
+          <button id="themeBtn" class="btn" type="button">
+            <span id="themeIcon" aria-hidden="true">☀︎</span>
+            <span id="themeLabel">Light</span>
+          </button>
+          <button id="copyCssTop" class="btn primary" type="button">
+            Copy CSS
+          </button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-inner">
+            <div class="sidebar-head">
+              <h2>Examples</h2>
+              <div class="count" id="exampleCount">0</div>
+            </div>
+            <div class="sidebar-sub">
+              <div class="small">
+                Click an example to load it into the builder. Most presets are
+                “moiré‑safe rails” or “premium card” edge recipes.
+              </div>
+            </div>
+            <div class="example-list" id="exampleList" aria-live="polite"></div>
+            <div class="sidebar-foot">
+              <div class="hint">
+                Tip: For “no leakage”, prefer <b>Pseudo + Mask</b>.
+              </div>
+              <button id="resetBtn" class="btn ghost" type="button">
+                Reset
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <main class="main">
+          <div class="grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Builder</h2>
+                  <div class="sub">
+                    Tune layers: base fill → lighting → edges → shadow → texture
+                  </div>
+                </div>
+                <div class="chips">
+                  <span class="chip accent" id="activeExampleChip">Custom</span>
+                  <span class="chip" id="activeTechniqueChip">Rail: B</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <form class="controls" id="controls" autocomplete="off">
+                  <fieldset class="fieldset">
+                    <legend>Technique</legend>
+                    <div class="row">
+                      <div class="field">
+                        <label for="railMode">
+                          Rail approach
+                          <span class="value" id="railModeVal"></span>
+                        </label>
+                        <select id="railMode">
+                          <option value="b">
+                            B) Pseudo-element + vertical mask (best)
+                          </option>
+                          <option value="a">A) Inset shadow (simple)</option>
+                          <option value="c">
+                            C) Background strip (no pseudo)
+                          </option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="railFeel">
+                          Rail feel
+                          <span class="value" id="railFeelVal"></span>
+                        </label>
+                        <select id="railFeel">
+                          <option value="glow">Accent glow</option>
+                          <option value="crease">Depth crease</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="field">
+                        <label for="edgePlacement">
+                          Edge placement
+                          <span class="value" id="edgePlacementVal"></span>
+                        </label>
+                        <select id="edgePlacement">
+                          <option value="left">Left</option>
+                          <option value="right">Right</option>
+                          <option value="top">Top</option>
+                          <option value="bottom">Bottom</option>
+                          <option value="lr">Left + right</option>
+                          <option value="tb">Top + bottom</option>
+                          <option value="all">All edges</option>
+                        </select>
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="fieldset">
+                    <legend>Colors</legend>
+                    <div class="field">
+                      <label>Accent (rail)</label>
+                      <div class="color-row">
+                        <div class="color">
+                          <input id="accentColor" type="color" value="#6d5efc" />
+                          <input
+                            id="accentText"
+                            type="text"
+                            value="#6D5EFC"
+                            spellcheck="false"
+                          />
+                        </div>
+                        <div class="swatches" id="accentSwatches"></div>
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="field">
+                        <label>Surface</label>
+                        <div class="color-row">
+                          <div class="color">
+                            <input
+                              id="surfaceColor"
+                              type="color"
+                              value="#ffffff"
+                            />
+                            <input
+                              id="surfaceText"
+                              type="text"
+                              value="#FFFFFF"
+                              spellcheck="false"
+                            />
+                          </div>
+                          <div class="swatches" id="surfaceSwatches"></div>
+                        </div>
+                      </div>
+
+                      <div class="field">
+                        <label>Surface (secondary)</label>
+                        <div class="color-row">
+                          <div class="color">
+                            <input
+                              id="surface2Color"
+                              type="color"
+                              value="#f7f8ff"
+                            />
+                            <input
+                              id="surface2Text"
+                              type="text"
+                              value="#F7F8FF"
+                              spellcheck="false"
+                            />
+                          </div>
+                          <div class="swatches" id="surface2Swatches"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="fieldset">
+                    <legend>Card layers</legend>
+                    <div class="row">
+                      <div class="field">
+                        <label for="radius"
+                          >Radius <span class="value" id="radiusVal"></span
+                        ></label>
+                        <input
+                          id="radius"
+                          type="range"
+                          min="8"
+                          max="22"
+                          step="1"
+                          value="14"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="surfaceGrad"
+                          >Surface gradient
+                          <span class="value" id="surfaceGradVal"></span
+                        ></label>
+                        <input
+                          id="surfaceGrad"
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value="0.35"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="field">
+                        <label for="elev"
+                          >Elevation <span class="value" id="elevVal"></span
+                        ></label>
+                        <input
+                          id="elev"
+                          type="range"
+                          min="0"
+                          max="10"
+                          step="1"
+                          value="6"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="noise"
+                          >Noise <span class="value" id="noiseVal"></span
+                        ></label>
+                        <input
+                          id="noise"
+                          type="range"
+                          min="0"
+                          max="0.18"
+                          step="0.01"
+                          value="0.06"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="toggle">
+                        <div class="meta">
+                          <div class="t">Inner border</div>
+                          <div class="d">
+                            Crisp inner stroke instead of an outer border
+                          </div>
+                        </div>
+                        <input id="innerBorderOn" type="checkbox" checked />
+                      </div>
+                      <div class="toggle">
+                        <div class="meta">
+                          <div class="t">Bevel lighting</div>
+                          <div class="d">Subtle top highlight + bottom shade</div>
+                        </div>
+                        <input id="bevelOn" type="checkbox" checked />
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="toggle">
+                        <div class="meta">
+                          <div class="t">Edge stroke (border)</div>
+                          <div class="d">
+                            Optional crisp stroke on chosen edges (uses Edge
+                            placement)
+                          </div>
+                        </div>
+                        <input id="edgeStrokeOn" type="checkbox" />
+                      </div>
+                      <div class="field">
+                        <label for="edgeStrokeW"
+                          >Stroke width
+                          <span class="value" id="edgeStrokeWVal"></span
+                        ></label>
+                        <input
+                          id="edgeStrokeW"
+                          type="range"
+                          min="1"
+                          max="3"
+                          step="1"
+                          value="1"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="toggle">
+                        <div class="meta">
+                          <div class="t">Corner vignette</div>
+                          <div class="d">
+                            Tiny edge darkening to avoid “flat” surfaces
+                          </div>
+                        </div>
+                        <input id="vignetteOn" type="checkbox" checked />
+                      </div>
+                      <div class="field">
+                        <label for="vignette"
+                          >Vignette
+                          <span class="value" id="vignetteVal"></span
+                        ></label>
+                        <input
+                          id="vignette"
+                          type="range"
+                          min="0"
+                          max="0.16"
+                          step="0.01"
+                          value="0.06"
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="fieldset">
+                    <legend>Rail knobs</legend>
+                    <div class="row">
+                      <div class="field">
+                        <label for="railStripW"
+                          >Strip width
+                          <span class="value" id="railStripWVal"></span
+                        ></label>
+                        <input
+                          id="railStripW"
+                          type="range"
+                          min="12"
+                          max="34"
+                          step="1"
+                          value="18"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="railFade"
+                          >Corner fade
+                          <span class="value" id="railFadeVal"></span
+                        ></label>
+                        <input
+                          id="railFade"
+                          type="range"
+                          min="6"
+                          max="22"
+                          step="1"
+                          value="10"
+                        />
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="field">
+                        <label for="railCoreW"
+                          >Core width
+                          <span class="value" id="railCoreWVal"></span
+                        ></label>
+                        <input
+                          id="railCoreW"
+                          type="range"
+                          min="1"
+                          max="2"
+                          step="1"
+                          value="1"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="railTotalW"
+                          >Halo width
+                          <span class="value" id="railTotalWVal"></span
+                        ></label>
+                        <input
+                          id="railTotalW"
+                          type="range"
+                          min="2"
+                          max="8"
+                          step="1"
+                          value="4"
+                        />
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="field">
+                        <label for="railBlur"
+                          >Softness
+                          <span class="value" id="railBlurVal"></span
+                        ></label>
+                        <input
+                          id="railBlur"
+                          type="range"
+                          min="0"
+                          max="1.4"
+                          step="0.05"
+                          value="0.35"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="railX"
+                          >Rail X
+                          <span class="value" id="railXVal"></span
+                        ></label>
+                        <input
+                          id="railX"
+                          type="range"
+                          min="6"
+                          max="18"
+                          step="1"
+                          value="10"
+                        />
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="field">
+                        <label for="depthStep"
+                          >Depth indent
+                          <span class="value" id="depthStepVal"></span
+                        ></label>
+                        <input
+                          id="depthStep"
+                          type="range"
+                          min="10"
+                          max="18"
+                          step="1"
+                          value="14"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="jitter"
+                          >Micro-jitter
+                          <span class="value" id="jitterVal"></span
+                        ></label>
+                        <input
+                          id="jitter"
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.25"
+                          value="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="field">
+                        <label for="alphaBase"
+                          >Depth alpha base
+                          <span class="value" id="alphaBaseVal"></span
+                        ></label>
+                        <input
+                          id="alphaBase"
+                          type="range"
+                          min="0.2"
+                          max="0.8"
+                          step="0.01"
+                          value="0.52"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="alphaDecay"
+                          >Depth alpha decay
+                          <span class="value" id="alphaDecayVal"></span
+                        ></label>
+                        <input
+                          id="alphaDecay"
+                          type="range"
+                          min="0"
+                          max="0.18"
+                          step="0.01"
+                          value="0.09"
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+                </form>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Preview</h2>
+                  <div class="sub">
+                    Card edges + nested comment rails (no horizontal rules)
+                  </div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="stage">
+                  <div class="stage-note">
+                    The rail replaces a solid border-left to avoid moiré. The
+                    most “designer” variant is B: pseudo-element + vertical
+                    mask, which fades the rail near corners without adding
+                    horizontal lines.
+                  </div>
+                  <div class="stage-surface">
+                    <div
+                      id="cardPreview"
+                      class="fx-card edge-card"
+                      data-rail="b"
+                      aria-label="Card preview"
+                    >
+                      <h3 class="fx-title">A “premium” card surface</h3>
+                      <p class="fx-body">
+                        Multi-layer shadows + inner border + subtle lighting +
+                        optional noise. Add a left rail for hierarchy or accent.
+                      </p>
+                      <div class="fx-meta">
+                        <span class="fx-badge">Base fill</span>
+                        <span class="fx-badge">Lighting</span>
+                        <span class="fx-badge">Edge</span>
+                        <span class="fx-badge">Shadow</span>
+                        <span class="fx-badge">Texture</span>
+                      </div>
+                    </div>
+
+                    <div style="height: 12px"></div>
+
+                    <div class="thread" id="threadPreview">
+                      <div class="comment" data-rail="b" data-depth="0">
+                        <div class="who">
+                          <span class="avatar" aria-hidden="true"></span>
+                          <span class="name">Ada</span>
+                          <span class="time">2h</span>
+                        </div>
+                        <div class="text">
+                          Replaced a solid left border with a soft rail to stop
+                          moiré in the gaps, while still showing comment bounds.
+                        </div>
+                        <div class="replies">
+                          <div class="comment" data-rail="b" data-depth="1">
+                            <div class="who">
+                              <span class="avatar" aria-hidden="true"></span>
+                              <span class="name">Lin</span>
+                              <span class="time">1h</span>
+                            </div>
+                            <div class="text">
+                              Mask fade makes the rail “start/stop” cleanly near
+                              corners — no horizontal separators needed.
+                            </div>
+                            <div class="replies">
+                              <div class="comment" data-rail="b" data-depth="2">
+                                <div class="who">
+                                  <span class="avatar" aria-hidden="true"></span>
+                                  <span class="name">Sam</span>
+                                  <span class="time">58m</span>
+                                </div>
+                                <div class="text">
+                                  Lower alpha per depth and a tiny micro-jitter
+                                  break periodic alignment (less shimmer).
+                                </div>
+                              </div>
+                              <div class="comment" data-rail="b" data-depth="2">
+                                <div class="who">
+                                  <span class="avatar" aria-hidden="true"></span>
+                                  <span class="name">Maya</span>
+                                  <span class="time">42m</span>
+                                </div>
+                                <div class="text">
+                                  For more clarity, add a 1px core + soft halo
+                                  instead of raising overall opacity.
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="comment" data-rail="b" data-depth="1">
+                            <div class="who">
+                              <span class="avatar" aria-hidden="true"></span>
+                              <span class="name">Jo</span>
+                              <span class="time">37m</span>
+                            </div>
+                            <div class="text">
+                              Inset shadow is a good fallback when you don’t
+                              want pseudo-elements.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel" style="margin-top: 16px">
+            <div class="panel-header">
+              <div>
+                <h2>Generated CSS</h2>
+                <div class="sub">
+                  Copy/pasteable recipe: rails + card layers + knobs as vars
+                </div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <pre><code id="cssOut">/* generating… */</code></pre>
+              <div class="code-actions">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap">
+                  <button id="copyCss" class="btn primary" type="button">
+                    Copy CSS
+                  </button>
+                  <button id="copyHtml" class="btn" type="button">
+                    Copy HTML snippet
+                  </button>
+                </div>
+                <button id="exportPreset" class="btn" type="button">
+                  Copy as preset JSON
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="doc">
+            <h3>Mental model: style in layers</h3>
+            <p>
+              Most “premium UI” surfaces are made of tiny, controllable layers:
+              base fill, surface lighting, edge treatment, contact shadow, and a
+              whisper of noise for texture (reduces banding).
+            </p>
+            <ul>
+              <li>
+                Prefer <b>inner borders</b> (inset shadows) over borders to avoid
+                seams.
+              </li>
+              <li>
+                For one-edge effects, decide: should it wrap corners, or fade
+                near corners?
+              </li>
+              <li>
+                To remove moiré, reduce contrast and add micro-variation (alpha,
+                width, or slight offsets).
+              </li>
+            </ul>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      // -----------------------------
+      //  Small utilities
+      // -----------------------------
+      function clamp(n, lo, hi) {
+        return Math.max(lo, Math.min(hi, n));
+      }
+      function fmt(n, digits = 2) {
+        const x = Number(n);
+        if (!Number.isFinite(x)) return String(n);
+        return x.toFixed(digits).replace(/\.00$/, "");
+      }
+      function normalizeHex(hex) {
+        let s = String(hex || "").trim();
+        if (!s.startsWith("#")) s = "#" + s;
+        s = s.toUpperCase();
+        if (/^#[0-9A-F]{3}$/.test(s)) {
+          s =
+            "#" +
+            s[1] +
+            s[1] +
+            s[2] +
+            s[2] +
+            s[3] +
+            s[3];
+        }
+        if (!/^#[0-9A-F]{6}$/.test(s)) return null;
+        return s;
+      }
+      function hexToRgb(hex) {
+        const s = normalizeHex(hex);
+        if (!s) return null;
+        const r = parseInt(s.slice(1, 3), 16);
+        const g = parseInt(s.slice(3, 5), 16);
+        const b = parseInt(s.slice(5, 7), 16);
+        return { r, g, b };
+      }
+      function rgbaFromHex(hex, a) {
+        const rgb = hexToRgb(hex);
+        if (!rgb) return null;
+        const alpha = clamp(Number(a), 0, 1);
+        return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${fmt(alpha, 3)})`;
+      }
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          // fallback
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.setAttribute("readonly", "true");
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          return true;
+        }
+      }
+      let toastTimer = null;
+      function toast(msg) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.dataset.on = "true";
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          el.dataset.on = "false";
+        }, 900);
+      }
+
+      // -----------------------------
+      //  Builder state
+      // -----------------------------
+      const DEFAULT_STATE = {
+        theme: "light",
+
+        railMode: "b",
+        railFeel: "glow",
+        edgePlacement: "left",
+
+        accentHex: "#6D5EFC",
+        surfaceHex: "#FFFFFF",
+        surface2Hex: "#F7F8FF",
+
+        radius: 14,
+        surfaceGrad: 0.35,
+        elev: 6,
+        noise: 0.06,
+        vignetteOn: true,
+        vignette: 0.06,
+        innerBorderOn: true,
+        bevelOn: true,
+        edgeStrokeOn: false,
+        edgeStrokeW: 1,
+
+        railStripW: 18,
+        railFade: 10,
+        railCoreW: 1,
+        railTotalW: 4,
+        railBlur: 0.35,
+        railX: 10,
+        depthStep: 14,
+        jitter: 0,
+        alphaBase: 0.52,
+        alphaDecay: 0.09,
+      };
+
+      let state = { ...DEFAULT_STATE };
+      let activeExampleId = "custom";
+
+      const PRESETS = [
+        // Rails (moiré-safe)
+        {
+          id: "rail-mask-balanced",
+          group: "Moiré-safe rails",
+          name: "Balanced rail (mask fade)",
+          desc: "Clear vertical indicator, soft core+halo, corner fade, no leakage.",
+          tags: ["rail", "mask", "pseudo", "comments", "no-leakage"],
+          patch: {
+            railMode: "b",
+            railFeel: "glow",
+            accentHex: "#6D5EFC",
+            railStripW: 18,
+            railFade: 10,
+            railCoreW: 1,
+            railTotalW: 4,
+            railBlur: 0.35,
+            railX: 10,
+            depthStep: 14,
+            jitter: 0.5,
+            alphaBase: 0.56,
+            alphaDecay: 0.09,
+            noise: 0.06,
+            elev: 6,
+            vignetteOn: true,
+            vignette: 0.06,
+          },
+        },
+        {
+          id: "rail-mask-quiet",
+          group: "Moiré-safe rails",
+          name: "Quiet rail (very low contrast)",
+          desc: "A minimal rail that reads via width, not alpha (good for dense threads).",
+          tags: ["rail", "mask", "subtle", "hierarchy"],
+          patch: {
+            railMode: "b",
+            railFeel: "glow",
+            accentHex: "#6474FF",
+            railStripW: 16,
+            railFade: 12,
+            railCoreW: 1,
+            railTotalW: 3,
+            railBlur: 0.35,
+            railX: 10,
+            depthStep: 13,
+            jitter: 1,
+            alphaBase: 0.5,
+            alphaDecay: 0.1,
+            elev: 4,
+            noise: 0.05,
+            vignetteOn: true,
+            vignette: 0.05,
+          },
+        },
+        {
+          id: "rail-mask-bold",
+          group: "Moiré-safe rails",
+          name: "Bold rail (still soft)",
+          desc: "More presence without harshness: thicker halo + slightly higher core.",
+          tags: ["rail", "mask", "strong", "accent"],
+          patch: {
+            railMode: "b",
+            railFeel: "glow",
+            accentHex: "#7C3AED",
+            railStripW: 22,
+            railFade: 10,
+            railCoreW: 2,
+            railTotalW: 6,
+            railBlur: 0.4,
+            railX: 9,
+            depthStep: 14,
+            jitter: 0.75,
+            alphaBase: 0.62,
+            alphaDecay: 0.1,
+            elev: 6,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.07,
+          },
+        },
+        {
+          id: "rail-crease",
+          group: "Moiré-safe rails",
+          name: "Depth crease (not a glow)",
+          desc: "Reads like indentation depth / occlusion. Works well in dark mode too.",
+          tags: ["rail", "crease", "shadow", "depth"],
+          patch: {
+            railMode: "b",
+            railFeel: "crease",
+            accentHex: "#0EA5E9",
+            railStripW: 20,
+            railFade: 12,
+            railCoreW: 1,
+            railTotalW: 5,
+            railBlur: 0.45,
+            railX: 10,
+            depthStep: 14,
+            jitter: 0.75,
+            alphaBase: 0.56,
+            alphaDecay: 0.11,
+            elev: 5,
+            noise: 0.05,
+            vignetteOn: true,
+            vignette: 0.06,
+          },
+        },
+        {
+          id: "rail-inset-simple",
+          group: "Moiré-safe rails",
+          name: "Inset rail (simple fallback)",
+          desc: "No pseudo-elements. Inset shadow can’t leak outside, but has no corner fade.",
+          tags: ["rail", "inset", "simple", "no-pseudo"],
+          patch: {
+            railMode: "a",
+            railFeel: "glow",
+            accentHex: "#6D5EFC",
+            railStripW: 18,
+            railFade: 10,
+            railCoreW: 1,
+            railTotalW: 4,
+            railBlur: 0.35,
+            railX: 10,
+            jitter: 0.5,
+            alphaBase: 0.56,
+            alphaDecay: 0.09,
+            elev: 5,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.06,
+          },
+        },
+        {
+          id: "rail-background-strip",
+          group: "Moiré-safe rails",
+          name: "Background strip (no pseudo)",
+          desc: "Zero extra layers; paints a left strip as a background layer.",
+          tags: ["rail", "background", "gradient"],
+          patch: {
+            railMode: "c",
+            railFeel: "glow",
+            accentHex: "#6D5EFC",
+            railStripW: 18,
+            railFade: 10,
+            railCoreW: 1,
+            railTotalW: 4,
+            railBlur: 0.35,
+            railX: 10,
+            jitter: 0,
+            alphaBase: 0.56,
+            alphaDecay: 0.09,
+            elev: 6,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.06,
+          },
+        },
+
+        // Cards / surfaces
+        {
+          id: "card-crisp",
+          group: "Premium cards",
+          name: "Crisp inner stroke",
+          desc: "Inner 1px border, subtle surface gradient, clean lift.",
+          tags: ["card", "inner-border", "shadow", "clean"],
+          patch: {
+            railMode: "b",
+            accentHex: "#5B7CFF",
+            radius: 14,
+            surfaceGrad: 0.28,
+            elev: 6,
+            noise: 0.05,
+            vignetteOn: true,
+            vignette: 0.05,
+            innerBorderOn: true,
+            bevelOn: true,
+            railStripW: 16,
+            railFade: 12,
+            railTotalW: 3,
+            alphaBase: 0.54,
+            alphaDecay: 0.09,
+          },
+        },
+        {
+          id: "card-soft-lift",
+          group: "Premium cards",
+          name: "Soft lift",
+          desc: "More blur, less contrast — ideal for “quiet” UIs.",
+          tags: ["card", "shadow", "soft"],
+          patch: {
+            elev: 8,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.07,
+            innerBorderOn: true,
+            bevelOn: false,
+            surfaceGrad: 0.22,
+            railMode: "b",
+            railStripW: 14,
+            railTotalW: 3,
+            railFade: 14,
+            railBlur: 0.4,
+            alphaBase: 0.48,
+            alphaDecay: 0.1,
+          },
+        },
+        {
+          id: "card-bevel",
+          group: "Premium cards",
+          name: "Inset bevel",
+          desc: "Lighting (top highlight + bottom shade) makes a surface feel designed.",
+          tags: ["card", "bevel", "lighting"],
+          patch: {
+            bevelOn: true,
+            innerBorderOn: true,
+            surfaceGrad: 0.5,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.06,
+            elev: 6,
+            accentHex: "#00C2FF",
+            railMode: "b",
+            railStripW: 18,
+            railTotalW: 5,
+            alphaBase: 0.54,
+            alphaDecay: 0.09,
+          },
+        },
+        {
+          id: "card-dark-friendly",
+          group: "Premium cards",
+          name: "Dark-friendly preset",
+          desc: "Switch to dark mode; this preset keeps rails readable without glow overload.",
+          tags: ["card", "dark", "rail"],
+          patch: {
+            theme: "dark",
+            railMode: "b",
+            railFeel: "crease",
+            accentHex: "#38BDF8",
+            elev: 7,
+            noise: 0.07,
+            vignetteOn: true,
+            vignette: 0.08,
+            railStripW: 20,
+            railFade: 12,
+            railBlur: 0.5,
+            jitter: 0.75,
+            alphaBase: 0.54,
+            alphaDecay: 0.11,
+          },
+        },
+
+        // Quick palettes (fun but practical)
+        {
+          id: "palette-emerald",
+          group: "Quick palettes",
+          name: "Emerald accent",
+          desc: "Fresh green rail with a calm surface.",
+          tags: ["palette", "accent", "green"],
+          patch: {
+            accentHex: "#10B981",
+            railFeel: "glow",
+            railMode: "b",
+            railStripW: 18,
+            railTotalW: 4,
+            railFade: 12,
+            jitter: 0.75,
+            alphaBase: 0.54,
+            alphaDecay: 0.1,
+            surfaceHex: "#FFFFFF",
+            surface2Hex: "#F1FFF9",
+            surfaceGrad: 0.34,
+            vignetteOn: true,
+            vignette: 0.05,
+            elev: 6,
+            noise: 0.06,
+          },
+        },
+        {
+          id: "palette-amber",
+          group: "Quick palettes",
+          name: "Amber highlight",
+          desc: "Warm rail that still avoids harsh contrast.",
+          tags: ["palette", "accent", "amber"],
+          patch: {
+            accentHex: "#F59E0B",
+            railFeel: "glow",
+            railMode: "b",
+            railStripW: 20,
+            railTotalW: 5,
+            railFade: 12,
+            jitter: 0.75,
+            alphaBase: 0.56,
+            alphaDecay: 0.1,
+            surfaceHex: "#FFFFFF",
+            surface2Hex: "#FFF8E6",
+            surfaceGrad: 0.36,
+            vignetteOn: true,
+            vignette: 0.05,
+            elev: 6,
+            noise: 0.06,
+          },
+        },
+        {
+          id: "palette-rose",
+          group: "Quick palettes",
+          name: "Rose accent",
+          desc: "A punchy rail, softened with halo + mask fade.",
+          tags: ["palette", "accent", "rose"],
+          patch: {
+            accentHex: "#F43F5E",
+            railFeel: "glow",
+            railMode: "b",
+            railStripW: 22,
+            railTotalW: 6,
+            railFade: 10,
+            jitter: 0.75,
+            alphaBase: 0.58,
+            alphaDecay: 0.1,
+            surfaceHex: "#FFFFFF",
+            surface2Hex: "#FFF5F7",
+            surfaceGrad: 0.34,
+            vignetteOn: true,
+            vignette: 0.06,
+            elev: 6,
+            noise: 0.06,
+          },
+        },
+        {
+          id: "palette-cyan",
+          group: "Quick palettes",
+          name: "Cyan “product UI”",
+          desc: "Crisp cyan rail; great for dashboards and devtools.",
+          tags: ["palette", "accent", "cyan"],
+          patch: {
+            accentHex: "#06B6D4",
+            railFeel: "crease",
+            railMode: "b",
+            railStripW: 18,
+            railTotalW: 4,
+            railFade: 12,
+            jitter: 0.75,
+            alphaBase: 0.52,
+            alphaDecay: 0.1,
+            surfaceHex: "#FFFFFF",
+            surface2Hex: "#ECFEFF",
+            surfaceGrad: 0.32,
+            vignetteOn: true,
+            vignette: 0.05,
+            elev: 6,
+            noise: 0.06,
+          },
+        },
+
+        // Rail variations (shape & corner behavior)
+        {
+          id: "rail-hairline",
+          group: "Rail variations",
+          name: "Hairline core (very crisp)",
+          desc: "Reads like a border-left but feathered; best when you want clarity.",
+          tags: ["rail", "hairline", "core", "mask"],
+          patch: {
+            railMode: "b",
+            railFeel: "glow",
+            railCoreW: 1,
+            railTotalW: 2,
+            railStripW: 14,
+            railBlur: 0.2,
+            railFade: 10,
+            jitter: 0.5,
+            alphaBase: 0.6,
+            alphaDecay: 0.1,
+          },
+        },
+        {
+          id: "rail-halo-wide",
+          group: "Rail variations",
+          name: "Wide halo (soft perimeter)",
+          desc: "Extra softness without increasing contrast; great for moiré-heavy layouts.",
+          tags: ["rail", "halo", "soft", "mask"],
+          patch: {
+            railMode: "b",
+            railFeel: "glow",
+            railCoreW: 1,
+            railTotalW: 8,
+            railStripW: 28,
+            railBlur: 0.55,
+            railFade: 12,
+            jitter: 1,
+            alphaBase: 0.54,
+            alphaDecay: 0.1,
+          },
+        },
+        {
+          id: "rail-short-caps",
+          group: "Rail variations",
+          name: "Short corner fade (snappy start/stop)",
+          desc: "Fades quickly near corners; feels more “bounded” without horizontals.",
+          tags: ["rail", "mask", "corners"],
+          patch: {
+            railMode: "b",
+            railStripW: 18,
+            railFade: 6,
+            railBlur: 0.35,
+            jitter: 0.75,
+            alphaBase: 0.56,
+            alphaDecay: 0.1,
+          },
+        },
+        {
+          id: "rail-long-caps",
+          group: "Rail variations",
+          name: "Long corner fade (extra gentle)",
+          desc: "Very smooth near corners; good for large radii and airy cards.",
+          tags: ["rail", "mask", "corners", "soft"],
+          patch: {
+            railMode: "b",
+            railStripW: 20,
+            railFade: 20,
+            railBlur: 0.45,
+            jitter: 0.75,
+            alphaBase: 0.52,
+            alphaDecay: 0.1,
+          },
+        },
+        {
+          id: "rail-no-jitter",
+          group: "Rail variations",
+          name: "No jitter (perfect alignment)",
+          desc: "Sometimes you want the clean grid; keep alpha low to avoid shimmer.",
+          tags: ["rail", "aligned", "no-jitter"],
+          patch: {
+            railMode: "b",
+            railStripW: 18,
+            railFade: 12,
+            jitter: 0,
+            alphaBase: 0.46,
+            alphaDecay: 0.1,
+          },
+        },
+
+        // Depth tuning (moiré control)
+        {
+          id: "depth-decay-weak",
+          group: "Depth tuning",
+          name: "Weak depth decay",
+          desc: "Depth stays readable further down the thread (use when max depth is small).",
+          tags: ["depth", "alpha", "hierarchy"],
+          patch: {
+            railMode: "b",
+            alphaBase: 0.58,
+            alphaDecay: 0.04,
+            jitter: 0.75,
+            depthStep: 14,
+          },
+        },
+        {
+          id: "depth-decay-strong",
+          group: "Depth tuning",
+          name: "Strong depth decay",
+          desc: "Deep threads don’t overwhelm; reduces repeating contrast quickly.",
+          tags: ["depth", "alpha", "moiré"],
+          patch: {
+            railMode: "b",
+            alphaBase: 0.58,
+            alphaDecay: 0.16,
+            jitter: 1,
+            depthStep: 14,
+          },
+        },
+        {
+          id: "depth-tight-indent",
+          group: "Depth tuning",
+          name: "Tight indent (compact threads)",
+          desc: "Keeps hierarchy compact; pairs well with quiet rails.",
+          tags: ["depth", "indent", "compact"],
+          patch: {
+            railMode: "b",
+            depthStep: 11,
+            railStripW: 16,
+            railTotalW: 3,
+            alphaBase: 0.5,
+            alphaDecay: 0.1,
+            jitter: 0.75,
+          },
+        },
+        {
+          id: "depth-wide-indent",
+          group: "Depth tuning",
+          name: "Wide indent (spacious threads)",
+          desc: "More air per level; good when avatars + metadata are busy.",
+          tags: ["depth", "indent", "spacious"],
+          patch: {
+            railMode: "b",
+            depthStep: 18,
+            railStripW: 20,
+            railTotalW: 5,
+            alphaBase: 0.52,
+            alphaDecay: 0.1,
+            jitter: 0.75,
+          },
+        },
+
+        // Shadow stacks
+        {
+          id: "shadow-tight",
+          group: "Shadow stacks",
+          name: "Tight contact shadow",
+          desc: "Feels grounded; great for dense lists where big blurs get muddy.",
+          tags: ["shadow", "contact", "tight"],
+          patch: {
+            elev: 3,
+            bevelOn: true,
+            innerBorderOn: true,
+            noise: 0.04,
+            vignetteOn: true,
+            vignette: 0.04,
+          },
+        },
+        {
+          id: "shadow-floating",
+          group: "Shadow stacks",
+          name: "Floating panel",
+          desc: "Larger blur + slightly higher alpha; use sparingly for callouts.",
+          tags: ["shadow", "lift", "panel"],
+          patch: {
+            elev: 10,
+            bevelOn: false,
+            innerBorderOn: true,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.07,
+          },
+        },
+        {
+          id: "shadow-designed",
+          group: "Shadow stacks",
+          name: "Designed elevation (bevel + lift)",
+          desc: "A “product card” look: gentle lighting and a clean lift.",
+          tags: ["shadow", "bevel", "card"],
+          patch: {
+            elev: 7,
+            bevelOn: true,
+            innerBorderOn: true,
+            noise: 0.06,
+            vignetteOn: true,
+            vignette: 0.06,
+            surfaceGrad: 0.45,
+          },
+        },
+
+        // Texture
+        {
+          id: "texture-off",
+          group: "Texture",
+          name: "No noise (flat gradients)",
+          desc: "Sometimes you want a clean demo; banding may show on large gradients.",
+          tags: ["texture", "noise", "off"],
+          patch: {
+            noise: 0,
+            vignetteOn: true,
+            vignette: 0.05,
+          },
+        },
+        {
+          id: "texture-grain",
+          group: "Texture",
+          name: "More grain (anti-banding)",
+          desc: "Helps big subtle gradients feel intentional; don’t overdo in production.",
+          tags: ["texture", "noise", "grain"],
+          patch: {
+            noise: 0.12,
+            vignetteOn: true,
+            vignette: 0.06,
+          },
+        },
+
+        // Dark rails (theme-focused)
+        {
+          id: "dark-glow-indigo",
+          group: "Dark theme rails",
+          name: "Dark glow (indigo)",
+          desc: "Glow rail tuned for dark surfaces (avoid neon: keep halo low).",
+          tags: ["dark", "rail", "glow"],
+          patch: {
+            theme: "dark",
+            railMode: "b",
+            railFeel: "glow",
+            accentHex: "#A78BFA",
+            railStripW: 20,
+            railTotalW: 5,
+            railFade: 12,
+            railBlur: 0.55,
+            jitter: 0.75,
+            alphaBase: 0.5,
+            alphaDecay: 0.11,
+            elev: 7,
+            noise: 0.07,
+            vignetteOn: true,
+            vignette: 0.08,
+            surfaceHex: "#0D1326",
+            surface2Hex: "#0B1020",
+            surfaceGrad: 0.28,
+          },
+        },
+        {
+          id: "dark-crease-teal",
+          group: "Dark theme rails",
+          name: "Dark crease (teal)",
+          desc: "Depth-first look: reads like indentation rather than decoration.",
+          tags: ["dark", "rail", "crease", "depth"],
+          patch: {
+            theme: "dark",
+            railMode: "b",
+            railFeel: "crease",
+            accentHex: "#22D3EE",
+            railStripW: 18,
+            railTotalW: 4,
+            railFade: 14,
+            railBlur: 0.55,
+            jitter: 1,
+            alphaBase: 0.52,
+            alphaDecay: 0.12,
+            elev: 7,
+            noise: 0.07,
+            vignetteOn: true,
+            vignette: 0.08,
+            surfaceHex: "#0D1326",
+            surface2Hex: "#0B1020",
+            surfaceGrad: 0.26,
+          },
+        },
+      ];
+
+      const ACCENT_SWATCHES = [
+        "#6D5EFC",
+        "#7C3AED",
+        "#2563EB",
+        "#0EA5E9",
+        "#06B6D4",
+        "#10B981",
+        "#F59E0B",
+        "#F43F5E",
+      ];
+      const SURFACE_SWATCHES = ["#FFFFFF", "#FBFBFF", "#F7F8FF", "#F6F7FB"];
+      const SURFACE2_SWATCHES = ["#F7F8FF", "#EEF2FF", "#F3F4F6", "#ECFEFF"];
+
+      function effectiveExampleCount(filterText) {
+        const q = String(filterText || "").trim().toLowerCase();
+        if (!q) return PRESETS.length;
+        return PRESETS.filter((p) => {
+          const hay = (p.name + " " + p.desc + " " + p.tags.join(" "))
+            .toLowerCase()
+            .trim();
+          return hay.includes(q);
+        }).length;
+      }
+
+      // -----------------------------
+      //  Apply state -> CSS vars
+      // -----------------------------
+      function applyTheme(theme) {
+        document.body.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        const btn = document.getElementById("themeBtn");
+        const icon = document.getElementById("themeIcon");
+        const label = document.getElementById("themeLabel");
+        if (theme === "dark") {
+          icon.textContent = "☾";
+          label.textContent = "Dark";
+          btn.title = "Switch to light mode";
+        } else {
+          icon.textContent = "☀︎";
+          label.textContent = "Light";
+          btn.title = "Switch to dark mode";
+        }
+      }
+
+      function applyVarsFromState() {
+        const r = document.documentElement;
+        r.style.setProperty("--fx-radius", state.radius + "px");
+        r.style.setProperty("--fx-surface", state.surfaceHex);
+        r.style.setProperty("--fx-surface-2", state.surface2Hex);
+        r.style.setProperty("--fx-surface-grad", String(state.surfaceGrad));
+        r.style.setProperty("--fx-vignette-on", state.vignetteOn ? "1" : "0");
+        r.style.setProperty("--fx-vignette-a", String(state.vignette));
+
+        // Edge stroke (border)
+        r.style.setProperty("--edge-stroke-on", state.edgeStrokeOn ? "1" : "0");
+        r.style.setProperty("--edge-stroke-w", String(state.edgeStrokeW || 1) + "px");
+
+        // Elevation: map 0..10 to two shadows
+        // Tight stays small; soft grows.
+        const tA = 0.03 + state.elev * 0.006;
+        const sA = 0.05 + state.elev * 0.006;
+        const tY = 1 + Math.round(state.elev * 0.15);
+        const tB = 2 + Math.round(state.elev * 0.2);
+        const sY = 10 + state.elev * 2.2;
+        const sB = 26 + state.elev * 3.2;
+        r.style.setProperty("--fx-elev-tight-a", fmt(clamp(tA, 0.02, 0.12), 3));
+        r.style.setProperty("--fx-elev-soft-a", fmt(clamp(sA, 0.03, 0.16), 3));
+        r.style.setProperty("--fx-elev-tight-y", tY + "px");
+        r.style.setProperty("--fx-elev-tight-blur", tB + "px");
+        r.style.setProperty("--fx-elev-soft-y", fmt(sY, 1) + "px");
+        r.style.setProperty("--fx-elev-soft-blur", fmt(sB, 1) + "px");
+
+        r.style.setProperty("--fx-noise-on", "1");
+        r.style.setProperty("--fx-noise-strength", String(state.noise));
+        r.style.setProperty("--fx-inner-border-on", state.innerBorderOn ? "1" : "0");
+
+        const bevelOn = state.bevelOn;
+        r.style.setProperty("--fx-top-hi-on", bevelOn ? "1" : "0");
+        r.style.setProperty("--fx-bottom-sh-on", bevelOn ? "1" : "0");
+
+        // Rail geometry
+        r.style.setProperty("--rail-strip-w", state.railStripW + "px");
+        r.style.setProperty("--rail-fade", state.railFade + "px");
+        r.style.setProperty("--rail-core-w", state.railCoreW + "px");
+        r.style.setProperty("--rail-total-w", state.railTotalW + "px");
+        r.style.setProperty("--rail-blur", state.railBlur + "px");
+        r.style.setProperty("--rail-x", state.railX + "px");
+        r.style.setProperty("--rail-depth-step", state.depthStep + "px");
+        r.style.setProperty("--rail-jitter", state.jitter + "px");
+        r.style.setProperty("--rail-alpha-base", String(state.alphaBase));
+        r.style.setProperty("--rail-alpha-decay", String(state.alphaDecay));
+
+        // Rail colors depend on "feel" and theme.
+        const theme = state.theme;
+        const baseGlow = theme === "dark" ? 0.72 : 0.62;
+        const baseCore = theme === "dark" ? 0.84 : 0.78;
+        const baseHalo = theme === "dark" ? 0.18 : 0.24;
+
+        // Crease is more shadowy/occlusion-like: desaturate + lower halo, a touch of dark.
+        if (state.railFeel === "crease") {
+          const core = rgbaFromHex(state.accentHex, theme === "dark" ? 0.42 : 0.36);
+          const halo = rgbaFromHex(state.accentHex, theme === "dark" ? 0.14 : 0.12);
+          const acc = rgbaFromHex(state.accentHex, theme === "dark" ? 0.28 : 0.24);
+          r.style.setProperty("--rail-core", core || "rgba(109,94,252,0.36)");
+          r.style.setProperty("--rail-halo", halo || "rgba(109,94,252,0.12)");
+          r.style.setProperty("--rail-accent", acc || "rgba(109,94,252,0.24)");
+        } else {
+          const core = rgbaFromHex(state.accentHex, baseCore);
+          const halo = rgbaFromHex(state.accentHex, baseHalo);
+          const acc = rgbaFromHex(state.accentHex, baseGlow);
+          r.style.setProperty("--rail-core", core || "rgba(109,94,252,0.78)");
+          r.style.setProperty("--rail-halo", halo || "rgba(109,94,252,0.24)");
+          r.style.setProperty("--rail-accent", acc || "rgba(109,94,252,0.62)");
+        }
+
+        // Per-depth alpha + micro-jitter (break periodic alignment => less moiré)
+        updateDepthRails();
+
+        // Update preview selectors
+        const card = document.getElementById("cardPreview");
+        card.dataset.rail = state.railMode;
+        card.dataset.edge = state.edgePlacement || "left";
+        document.querySelectorAll("#threadPreview .comment").forEach((c) => {
+          c.dataset.rail = state.railMode;
+        });
+      }
+
+      function updateDepthRails() {
+        const theme = state.theme;
+        const feel = state.railFeel;
+        const baseCoreAlpha =
+          feel === "crease" ? (theme === "dark" ? 0.42 : 0.36) : theme === "dark" ? 0.84 : 0.78;
+        const baseHaloAlpha =
+          feel === "crease" ? (theme === "dark" ? 0.14 : 0.12) : theme === "dark" ? 0.18 : 0.24;
+
+        // Keep "accent" softer than core; use it for inset fallback
+        const baseAccentAlpha =
+          feel === "crease" ? (theme === "dark" ? 0.28 : 0.24) : theme === "dark" ? 0.72 : 0.62;
+
+        const base = clamp(Number(state.alphaBase), 0.05, 1);
+        const decay = clamp(Number(state.alphaDecay), 0, 1);
+
+        const comments = document.querySelectorAll("#threadPreview .comment");
+        comments.forEach((c) => {
+          const depth = Number(c.dataset.depth || "0");
+          const k = clamp(base - depth * decay, 0.06, 1);
+          const core = rgbaFromHex(state.accentHex, baseCoreAlpha * k);
+          const halo = rgbaFromHex(state.accentHex, baseHaloAlpha * k);
+          const acc = rgbaFromHex(state.accentHex, baseAccentAlpha * k);
+          if (core) c.style.setProperty("--rail-core-local", core);
+          if (halo) c.style.setProperty("--rail-halo-local", halo);
+          if (acc) c.style.setProperty("--rail-accent-local", acc);
+
+          // Alternate jitter direction per depth; tiny additional depth jitter to avoid perfect periodicity.
+          const dir = depth % 2 === 0 ? 1 : -1;
+          const j = clamp(Number(state.jitter), 0, 2);
+          const depthJ = depth ? (depth * 0.12) % 0.35 : 0;
+          c.style.setProperty("--rail-jitter-local", fmt(dir * j + depthJ, 2) + "px");
+        });
+      }
+
+      function setState(patch, meta = {}) {
+        state = { ...state, ...patch };
+        if (meta.exampleId) activeExampleId = meta.exampleId;
+        // Apply theme first for accurate derived defaults
+        applyTheme(state.theme);
+        applyVarsFromState();
+        syncControlsFromState();
+        renderCssOutput();
+        renderActiveChips();
+        persist();
+      }
+
+      // -----------------------------
+      //  Render chips / outputs
+      // -----------------------------
+      function renderActiveChips() {
+        const chip = document.getElementById("activeExampleChip");
+        const preset = PRESETS.find((p) => p.id === activeExampleId);
+        chip.textContent = preset ? preset.name : "Custom";
+        const techChip = document.getElementById("activeTechniqueChip");
+        techChip.textContent =
+          "Rail: " + String(state.railMode || "b").toUpperCase();
+      }
+
+      function cssTemplate() {
+        const railMode = state.railMode;
+        const bevelOn = state.bevelOn;
+        const innerBorderOn = state.innerBorderOn;
+        const theme = state.theme;
+
+        const railCore = getComputedStyle(document.documentElement)
+          .getPropertyValue("--rail-core")
+          .trim();
+        const railHalo = getComputedStyle(document.documentElement)
+          .getPropertyValue("--rail-halo")
+          .trim();
+        const railAccent = getComputedStyle(document.documentElement)
+          .getPropertyValue("--rail-accent")
+          .trim();
+
+        const innerBorder = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-inner-border-color")
+          .trim();
+        const topHi = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-top-hi-color")
+          .trim();
+        const bottomSh = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-bottom-sh-color")
+          .trim();
+
+        const elevTightA = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-elev-tight-a")
+          .trim();
+        const elevSoftA = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-elev-soft-a")
+          .trim();
+        const elevTightY = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-elev-tight-y")
+          .trim();
+        const elevTightB = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-elev-tight-blur")
+          .trim();
+        const elevSoftY = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-elev-soft-y")
+          .trim();
+        const elevSoftB = getComputedStyle(document.documentElement)
+          .getPropertyValue("--fx-elev-soft-blur")
+          .trim();
+
+        const railStripW = state.railStripW + "px";
+        const railFade = state.railFade + "px";
+        const railCoreW = state.railCoreW + "px";
+        const railTotalW = state.railTotalW + "px";
+        const railBlur = state.railBlur + "px";
+        const railX = state.railX + "px";
+        const depthStep = state.depthStep + "px";
+        const jitter = state.jitter + "px";
+
+        return `/* Edge Effects recipe (generated)
+Theme: ${theme}
+Rail approach: ${railMode.toUpperCase()} (${railMode === "b" ? "pseudo + mask" : railMode === "a" ? "inset" : "background"})
+*/
+
+:root {
+  /* Surface */
+  --fx-radius: ${state.radius}px;
+  --fx-surface: ${state.surfaceHex};
+  --fx-surface-2: ${state.surface2Hex};
+  --fx-surface-grad: ${fmt(state.surfaceGrad, 2)};
+  --fx-vignette-on: ${state.vignetteOn ? 1 : 0};
+  --fx-vignette-a: ${fmt(state.vignette, 2)};
+  --fx-vignette-focus: 0.62;
+
+  /* Elevation */
+  --fx-elev-tight-y: ${elevTightY};
+  --fx-elev-tight-blur: ${elevTightB};
+  --fx-elev-tight-a: ${elevTightA};
+  --fx-elev-soft-y: ${elevSoftY};
+  --fx-elev-soft-blur: ${elevSoftB};
+  --fx-elev-soft-a: ${elevSoftA};
+
+  /* Inner layers */
+  --fx-inner-border-on: ${innerBorderOn ? 1 : 0};
+  --fx-inner-border-color: ${innerBorder || "rgba(0,0,0,0.06)"};
+  --fx-top-hi-on: ${bevelOn ? 1 : 0};
+  --fx-top-hi-color: ${topHi || "rgba(255,255,255,0.08)"};
+  --fx-bottom-sh-on: ${bevelOn ? 1 : 0};
+  --fx-bottom-sh-color: ${bottomSh || "rgba(0,0,0,0.10)"};
+
+  /* Texture */
+  --fx-noise-on: 1;
+  --fx-noise-strength: ${fmt(state.noise, 2)};
+
+  /* Edge stroke (border) */
+  --edge-stroke-on: ${state.edgeStrokeOn ? 1 : 0};
+  --edge-stroke-w: ${state.edgeStrokeW || 1}px;
+  --edge-stroke-color: ${getComputedStyle(document.documentElement)
+    .getPropertyValue("--edge-stroke-color")
+    .trim() || "rgba(0,0,0,0.14)"};
+
+  /* Rail */
+  --rail-core: ${railCore || "rgba(109,94,252,0.78)"};
+  --rail-halo: ${railHalo || "rgba(109,94,252,0.24)"};
+  --rail-accent: ${railAccent || "rgba(109,94,252,0.62)"};
+  --rail-strip-w: ${railStripW};
+  --rail-core-w: ${railCoreW};
+  --rail-total-w: ${railTotalW};
+  --rail-fade: ${railFade};
+  --rail-blur: ${railBlur};
+  --rail-x: ${railX};
+  --rail-depth-step: ${depthStep};
+  --rail-jitter: ${jitter};
+}
+
+/* Premium card */
+.edge-card {
+  position: relative;
+  border-radius: var(--fx-radius);
+  overflow: hidden;
+  background:
+    linear-gradient(to right, color-mix(in oklab, transparent, var(--edge-stroke-color) calc(var(--edge-stroke-on) * var(--edge-l) * 100%)), rgba(0,0,0,0)) left / var(--edge-stroke-w) 100% no-repeat,
+    linear-gradient(to left,  color-mix(in oklab, transparent, var(--edge-stroke-color) calc(var(--edge-stroke-on) * var(--edge-r) * 100%)), rgba(0,0,0,0)) right / var(--edge-stroke-w) 100% no-repeat,
+    linear-gradient(to bottom,color-mix(in oklab, transparent, var(--edge-stroke-color) calc(var(--edge-stroke-on) * var(--edge-t) * 100%)), rgba(0,0,0,0)) top / 100% var(--edge-stroke-w) no-repeat,
+    linear-gradient(to top,   color-mix(in oklab, transparent, var(--edge-stroke-color) calc(var(--edge-stroke-on) * var(--edge-b) * 100%)), rgba(0,0,0,0)) bottom / 100% var(--edge-stroke-w) no-repeat,
+    radial-gradient(
+      140% 120% at 60% calc(var(--fx-vignette-focus) * 100%),
+      rgba(255,255,255,0) 0%,
+      rgba(2,6,23, calc(var(--fx-vignette-on) * var(--fx-vignette-a))) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--fx-surface) calc((1 - var(--fx-surface-grad)) * 100%), var(--fx-surface-2) calc(var(--fx-surface-grad) * 100%)),
+      var(--fx-surface)
+    );
+  box-shadow:
+    0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur) rgba(2,6,23,var(--fx-elev-tight-a)),
+    0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur) rgba(2,6,23,var(--fx-elev-soft-a)),
+    inset 0 0 0 calc(1px * var(--fx-inner-border-on)) var(--fx-inner-border-color),
+    inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+    inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0 var(--fx-bottom-sh-color);
+}
+
+/* Edge placement defaults + options */
+.edge-card {
+  --edge-l: 1;
+  --edge-r: 0;
+  --edge-t: 0;
+  --edge-b: 0;
+}
+.edge-card[data-edge="left"] { --edge-l:1; --edge-r:0; --edge-t:0; --edge-b:0; }
+.edge-card[data-edge="right"] { --edge-l:0; --edge-r:1; --edge-t:0; --edge-b:0; }
+.edge-card[data-edge="top"] { --edge-l:0; --edge-r:0; --edge-t:1; --edge-b:0; }
+.edge-card[data-edge="bottom"] { --edge-l:0; --edge-r:0; --edge-t:0; --edge-b:1; }
+.edge-card[data-edge="lr"] { --edge-l:1; --edge-r:1; --edge-t:0; --edge-b:0; }
+.edge-card[data-edge="tb"] { --edge-l:0; --edge-r:0; --edge-t:1; --edge-b:1; }
+.edge-card[data-edge="all"] { --edge-l:1; --edge-r:1; --edge-t:1; --edge-b:1; }
+
+/* Rail A: inset shadow */
+.edge-card[data-rail="a"] {
+  box-shadow:
+    0 var(--fx-elev-tight-y) var(--fx-elev-tight-blur) rgba(2,6,23,var(--fx-elev-tight-a)),
+    0 var(--fx-elev-soft-y) var(--fx-elev-soft-blur) rgba(2,6,23,var(--fx-elev-soft-a)),
+    inset 12px 0 18px -22px var(--rail-accent),
+    inset 0 0 0 calc(1px * var(--fx-inner-border-on)) var(--fx-inner-border-color),
+    inset 0 calc(1px * var(--fx-top-hi-on)) 0 var(--fx-top-hi-color),
+    inset 0 calc(-1px * var(--fx-bottom-sh-on)) 0 var(--fx-bottom-sh-color);
+}
+
+/* Rail B: pseudo + mask (no top/bottom leakage) */
+.edge-card[data-rail="b"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  filter: blur(var(--rail-blur));
+  background:
+    linear-gradient(to right, color-mix(in oklab, transparent, var(--rail-core) calc(var(--edge-l) * 100%)), rgba(0,0,0,0)) 0 0 / var(--rail-core-w) 100% no-repeat,
+    linear-gradient(to right, color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-l) * 100%)), rgba(0,0,0,0)) 0 0 / var(--rail-total-w) 100% no-repeat,
+    linear-gradient(to left,  color-mix(in oklab, transparent, var(--rail-core) calc(var(--edge-r) * 100%)), rgba(0,0,0,0)) 100% 0 / var(--rail-core-w) 100% no-repeat,
+    linear-gradient(to left,  color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-r) * 100%)), rgba(0,0,0,0)) 100% 0 / var(--rail-total-w) 100% no-repeat,
+    linear-gradient(to bottom,color-mix(in oklab, transparent, var(--rail-core) calc(var(--edge-t) * 100%)), rgba(0,0,0,0)) 0 0 / 100% var(--rail-core-w) no-repeat,
+    linear-gradient(to bottom,color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-t) * 100%)), rgba(0,0,0,0)) 0 0 / 100% var(--rail-total-w) no-repeat,
+    linear-gradient(to top,   color-mix(in oklab, transparent, var(--rail-core) calc(var(--edge-b) * 100%)), rgba(0,0,0,0)) 0 100% / 100% var(--rail-core-w) no-repeat,
+    linear-gradient(to top,   color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-b) * 100%)), rgba(0,0,0,0)) 0 100% / 100% var(--rail-total-w) no-repeat;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black var(--rail-fade), black calc(100% - var(--rail-fade)), transparent);
+          mask-image: linear-gradient(to bottom, transparent, black var(--rail-fade), black calc(100% - var(--rail-fade)), transparent);
+}
+
+.edge-card[data-rail="b"][data-edge="top"]::before,
+.edge-card[data-rail="b"][data-edge="bottom"]::before,
+.edge-card[data-rail="b"][data-edge="tb"]::before {
+  -webkit-mask-image: linear-gradient(to right, transparent, black var(--rail-fade), black calc(100% - var(--rail-fade)), transparent);
+          mask-image: linear-gradient(to right, transparent, black var(--rail-fade), black calc(100% - var(--rail-fade)), transparent);
+}
+
+/* Rail C: background strip */
+.edge-card[data-rail="c"] {
+  background:
+    linear-gradient(to right, color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-l) * 100%)), rgba(0,0,0,0) 72%) left / var(--rail-strip-w) 100% no-repeat,
+    linear-gradient(to left,  color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-r) * 100%)), rgba(0,0,0,0) 72%) right / var(--rail-strip-w) 100% no-repeat,
+    linear-gradient(to bottom,color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-t) * 100%)), rgba(0,0,0,0) 72%) top / 100% var(--rail-strip-w) no-repeat,
+    linear-gradient(to top,   color-mix(in oklab, transparent, var(--rail-halo) calc(var(--edge-b) * 100%)), rgba(0,0,0,0) 72%) bottom / 100% var(--rail-strip-w) no-repeat,
+    radial-gradient(
+      140% 120% at 60% calc(var(--fx-vignette-focus) * 100%),
+      rgba(255,255,255,0) 0%,
+      rgba(2,6,23, calc(var(--fx-vignette-on) * var(--fx-vignette-a))) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--fx-surface) calc((1 - var(--fx-surface-grad)) * 100%), var(--fx-surface-2) calc(var(--fx-surface-grad) * 100%)),
+      var(--fx-surface)
+    );
+}
+
+/* Nested comment rail (set --depth: 0..N on each comment) */
+.comment {
+  position: relative;
+  border-radius: var(--fx-radius);
+  overflow: hidden;
+  padding-left: calc(16px + (var(--depth) * var(--rail-depth-step)));
+}
+
+.comment[data-rail="b"]::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: calc(var(--rail-x) + (var(--depth) * var(--rail-depth-step)) + var(--rail-jitter-local, var(--rail-jitter)));
+  width: var(--rail-strip-w);
+  pointer-events: none;
+  filter: blur(var(--rail-blur));
+  background:
+    linear-gradient(to right, var(--rail-core-local, var(--rail-core)), rgba(0,0,0,0)) 0 0 / var(--rail-core-w) 100% no-repeat,
+    linear-gradient(to right, var(--rail-halo-local, var(--rail-halo)), rgba(0,0,0,0)) 0 0 / var(--rail-total-w) 100% no-repeat;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black var(--rail-fade), black calc(100% - var(--rail-fade)), transparent);
+          mask-image: linear-gradient(to bottom, transparent, black var(--rail-fade), black calc(100% - var(--rail-fade)), transparent);
+}`;
+      }
+
+      function renderCssOutput() {
+        document.getElementById("cssOut").textContent = cssTemplate();
+      }
+
+      // -----------------------------
+      //  Controls wiring
+      // -----------------------------
+      const els = {};
+      function $(id) {
+        return document.getElementById(id);
+      }
+
+      function bindElCache() {
+        [
+          "railMode",
+          "railFeel",
+          "edgePlacement",
+          "accentColor",
+          "accentText",
+          "surfaceColor",
+          "surfaceText",
+          "surface2Color",
+          "surface2Text",
+          "radius",
+          "surfaceGrad",
+          "elev",
+          "noise",
+          "vignetteOn",
+          "vignette",
+          "innerBorderOn",
+          "bevelOn",
+          "edgeStrokeOn",
+          "edgeStrokeW",
+          "railStripW",
+          "railFade",
+          "railCoreW",
+          "railTotalW",
+          "railBlur",
+          "railX",
+          "depthStep",
+          "jitter",
+          "alphaBase",
+          "alphaDecay",
+          "exampleSearch",
+        ].forEach((id) => (els[id] = $(id)));
+      }
+
+      function setValueLabel(id, text) {
+        const el = $(id);
+        if (el) el.textContent = text;
+      }
+
+      function syncControlsFromState() {
+        els.railMode.value = state.railMode;
+        els.railFeel.value = state.railFeel;
+        els.edgePlacement.value = state.edgePlacement || "left";
+        els.accentColor.value = state.accentHex;
+        els.accentText.value = state.accentHex;
+        els.surfaceColor.value = state.surfaceHex;
+        els.surfaceText.value = state.surfaceHex;
+        els.surface2Color.value = state.surface2Hex;
+        els.surface2Text.value = state.surface2Hex;
+
+        els.radius.value = String(state.radius);
+        els.surfaceGrad.value = String(state.surfaceGrad);
+        els.elev.value = String(state.elev);
+        els.noise.value = String(state.noise);
+        els.vignetteOn.checked = !!state.vignetteOn;
+        els.vignette.value = String(state.vignette);
+        els.innerBorderOn.checked = !!state.innerBorderOn;
+        els.bevelOn.checked = !!state.bevelOn;
+        els.edgeStrokeOn.checked = !!state.edgeStrokeOn;
+        els.edgeStrokeW.value = String(state.edgeStrokeW || 1);
+
+        els.railStripW.value = String(state.railStripW);
+        els.railFade.value = String(state.railFade);
+        els.railCoreW.value = String(state.railCoreW);
+        els.railTotalW.value = String(state.railTotalW);
+        els.railBlur.value = String(state.railBlur);
+        els.railX.value = String(state.railX);
+        els.depthStep.value = String(state.depthStep);
+        els.jitter.value = String(state.jitter);
+        els.alphaBase.value = String(state.alphaBase);
+        els.alphaDecay.value = String(state.alphaDecay);
+
+        setValueLabel("railModeVal", state.railMode.toUpperCase());
+        setValueLabel(
+          "railFeelVal",
+          state.railFeel === "glow" ? "Glow" : "Crease"
+        );
+        setValueLabel(
+          "edgePlacementVal",
+          String(state.edgePlacement || "left")
+            .toUpperCase()
+            .replace("LR", "L+R")
+            .replace("TB", "T+B")
+        );
+        setValueLabel("radiusVal", state.radius + "px");
+        setValueLabel("surfaceGradVal", fmt(state.surfaceGrad, 2));
+        setValueLabel("elevVal", String(state.elev));
+        setValueLabel("noiseVal", fmt(state.noise, 2));
+        setValueLabel("vignetteVal", fmt(state.vignette, 2));
+        setValueLabel("edgeStrokeWVal", String(state.edgeStrokeW || 1) + "px");
+        setValueLabel("railStripWVal", state.railStripW + "px");
+        setValueLabel("railFadeVal", state.railFade + "px");
+        setValueLabel("railCoreWVal", state.railCoreW + "px");
+        setValueLabel("railTotalWVal", state.railTotalW + "px");
+        setValueLabel("railBlurVal", fmt(state.railBlur, 2) + "px");
+        setValueLabel("railXVal", state.railX + "px");
+        setValueLabel("depthStepVal", state.depthStep + "px");
+        setValueLabel("jitterVal", fmt(state.jitter, 2) + "px");
+        setValueLabel("alphaBaseVal", fmt(state.alphaBase, 2));
+        setValueLabel("alphaDecayVal", fmt(state.alphaDecay, 2));
+      }
+
+      function wireControls() {
+        // Technique
+        els.railMode.addEventListener("change", () =>
+          setState({ railMode: els.railMode.value }, { exampleId: "custom" })
+        );
+        els.railFeel.addEventListener("change", () =>
+          setState({ railFeel: els.railFeel.value }, { exampleId: "custom" })
+        );
+        els.edgePlacement.addEventListener("change", () =>
+          setState(
+            { edgePlacement: els.edgePlacement.value },
+            { exampleId: "custom" }
+          )
+        );
+
+        // Colors: hex + picker are coupled
+        function bindColorPair(pickerEl, textEl, key) {
+          function applyFromText() {
+            const n = normalizeHex(textEl.value);
+            if (!n) {
+              toast("Invalid hex (use #RRGGBB)");
+              textEl.value = state[key];
+              return;
+            }
+            textEl.value = n;
+            pickerEl.value = n;
+            const patch = {};
+            patch[key] = n;
+            setState(patch, { exampleId: "custom" });
+          }
+          pickerEl.addEventListener("input", () => {
+            const n = normalizeHex(pickerEl.value);
+            textEl.value = n || textEl.value;
+            const patch = {};
+            patch[key] = n || state[key];
+            setState(patch, { exampleId: "custom" });
+          });
+          textEl.addEventListener("change", applyFromText);
+          textEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") applyFromText();
+          });
+        }
+
+        bindColorPair(els.accentColor, els.accentText, "accentHex");
+        bindColorPair(els.surfaceColor, els.surfaceText, "surfaceHex");
+        bindColorPair(els.surface2Color, els.surface2Text, "surface2Hex");
+
+        // Sliders
+        function bindRange(el, key, cast = Number) {
+          el.addEventListener("input", () => {
+            const patch = {};
+            patch[key] = cast(el.value);
+            setState(patch, { exampleId: "custom" });
+          });
+        }
+        bindRange(els.radius, "radius", (v) => parseInt(v, 10));
+        bindRange(els.surfaceGrad, "surfaceGrad", (v) =>
+          clamp(parseFloat(v), 0, 1)
+        );
+        bindRange(els.elev, "elev", (v) => parseInt(v, 10));
+        bindRange(els.noise, "noise", (v) => clamp(parseFloat(v), 0, 0.18));
+        bindRange(els.vignette, "vignette", (v) => clamp(parseFloat(v), 0, 0.16));
+        bindRange(els.railStripW, "railStripW", (v) => parseInt(v, 10));
+        bindRange(els.railFade, "railFade", (v) => parseInt(v, 10));
+        bindRange(els.railCoreW, "railCoreW", (v) => parseInt(v, 10));
+        bindRange(els.railTotalW, "railTotalW", (v) => parseInt(v, 10));
+        bindRange(els.railBlur, "railBlur", (v) => clamp(parseFloat(v), 0, 2));
+        bindRange(els.railX, "railX", (v) => parseInt(v, 10));
+        bindRange(els.depthStep, "depthStep", (v) => parseInt(v, 10));
+        bindRange(els.jitter, "jitter", (v) => clamp(parseFloat(v), 0, 2));
+        bindRange(els.alphaBase, "alphaBase", (v) => clamp(parseFloat(v), 0.05, 1));
+        bindRange(els.alphaDecay, "alphaDecay", (v) => clamp(parseFloat(v), 0, 1));
+
+        // Toggles
+        els.vignetteOn.addEventListener("change", () =>
+          setState({ vignetteOn: els.vignetteOn.checked }, { exampleId: "custom" })
+        );
+        els.innerBorderOn.addEventListener("change", () =>
+          setState(
+            { innerBorderOn: els.innerBorderOn.checked },
+            { exampleId: "custom" }
+          )
+        );
+        els.bevelOn.addEventListener("change", () =>
+          setState({ bevelOn: els.bevelOn.checked }, { exampleId: "custom" })
+        );
+        els.edgeStrokeOn.addEventListener("change", () =>
+          setState({ edgeStrokeOn: els.edgeStrokeOn.checked }, { exampleId: "custom" })
+        );
+        bindRange(els.edgeStrokeW, "edgeStrokeW", (v) => parseInt(v, 10));
+      }
+
+      // -----------------------------
+      //  Example list UI
+      // -----------------------------
+      function renderExampleList(filterText = "") {
+        const q = String(filterText || "").trim().toLowerCase();
+        const container = document.getElementById("exampleList");
+        container.innerHTML = "";
+
+        const byGroup = new Map();
+        for (const p of PRESETS) {
+          const hay = (p.name + " " + p.desc + " " + p.tags.join(" "))
+            .toLowerCase()
+            .trim();
+          if (q && !hay.includes(q)) continue;
+          if (!byGroup.has(p.group)) byGroup.set(p.group, []);
+          byGroup.get(p.group).push(p);
+        }
+
+        const groups = Array.from(byGroup.keys()).sort((a, b) =>
+          a.localeCompare(b)
+        );
+        for (const g of groups) {
+          const section = document.createElement("div");
+          section.className = "example-group";
+          const head = document.createElement("div");
+          head.className = "example-group-title";
+          const left = document.createElement("span");
+          left.textContent = g;
+          const right = document.createElement("span");
+          right.textContent = byGroup.get(g).length + " presets";
+          head.append(left, right);
+          section.appendChild(head);
+
+          for (const p of byGroup.get(g)) {
+            const item = document.createElement("div");
+            item.className = "example";
+            item.dataset.id = p.id;
+            item.dataset.active = p.id === activeExampleId ? "true" : "false";
+
+            const text = document.createElement("div");
+            const title = document.createElement("div");
+            title.className = "example-title";
+            title.textContent = p.name;
+            const desc = document.createElement("div");
+            desc.className = "example-desc";
+            desc.textContent = p.desc;
+            text.append(title, desc);
+
+            const chips = document.createElement("div");
+            chips.className = "chips";
+            const ch1 = document.createElement("span");
+            ch1.className = "chip";
+            ch1.textContent =
+              p.patch.railMode === "b"
+                ? "Pseudo+mask"
+                : p.patch.railMode === "a"
+                ? "Inset"
+                : "Background";
+            chips.appendChild(ch1);
+            const ch2 = document.createElement("span");
+            ch2.className = "chip accent";
+            ch2.textContent = (p.patch.railFeel || state.railFeel) === "crease"
+              ? "Crease"
+              : "Glow";
+            chips.appendChild(ch2);
+
+            item.append(text, chips);
+            item.addEventListener("click", () => {
+              activeExampleId = p.id;
+              setState(p.patch, { exampleId: p.id });
+              highlightActiveExample();
+              toast("Loaded: " + p.name);
+            });
+            section.appendChild(item);
+          }
+
+          container.appendChild(section);
+        }
+
+        document.getElementById("exampleCount").textContent =
+          effectiveExampleCount(filterText) + " presets";
+      }
+
+      function highlightActiveExample() {
+        document.querySelectorAll(".example").forEach((el) => {
+          el.dataset.active = el.dataset.id === activeExampleId ? "true" : "false";
+        });
+      }
+
+      function mountSwatches(containerId, swatches, onPick) {
+        const el = $(containerId);
+        el.innerHTML = "";
+        swatches.forEach((hex) => {
+          const s = document.createElement("button");
+          s.type = "button";
+          s.className = "swatch";
+          s.style.background = hex;
+          s.title = hex;
+          s.addEventListener("click", () => onPick(hex));
+          el.appendChild(s);
+        });
+      }
+
+      // -----------------------------
+      //  Theme + persistence
+      // -----------------------------
+      const LS_KEYS = {
+        theme: "edge_effects_theme",
+        state: "edge_effects_state_v1",
+      };
+
+      function loadPersisted() {
+        try {
+          const t = localStorage.getItem(LS_KEYS.theme);
+          if (t === "dark" || t === "light") state.theme = t;
+        } catch {}
+        try {
+          const raw = localStorage.getItem(LS_KEYS.state);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object") {
+              // Only accept keys we know
+              const next = { ...DEFAULT_STATE };
+              Object.keys(next).forEach((k) => {
+                if (k in parsed) next[k] = parsed[k];
+              });
+              state = next;
+              activeExampleId = "custom";
+            }
+          }
+        } catch {}
+      }
+
+      function persist() {
+        try {
+          localStorage.setItem(LS_KEYS.theme, state.theme);
+        } catch {}
+        try {
+          localStorage.setItem(LS_KEYS.state, JSON.stringify(state));
+        } catch {}
+      }
+
+      // -----------------------------
+      //  Actions
+      // -----------------------------
+      function wireActions() {
+        $("themeBtn").addEventListener("click", () => {
+          const next = state.theme === "dark" ? "light" : "dark";
+          setState({ theme: next }, { exampleId: "custom" });
+          persist();
+          toast(next === "dark" ? "Dark mode" : "Light mode");
+        });
+
+        function copyCssAction() {
+          const css = $("cssOut").textContent;
+          copyText(css).then(() => toast("CSS copied"));
+        }
+        $("copyCss").addEventListener("click", copyCssAction);
+        $("copyCssTop").addEventListener("click", copyCssAction);
+
+        $("copyHtml").addEventListener("click", () => {
+          const html = `<!-- Minimal markup -->
+<div class="edge-card" data-rail="${state.railMode}" data-edge="${state.edgePlacement || "left"}">
+  <h3>Title</h3>
+  <p>Body</p>
+</div>
+
+<!-- Comment rail: set --depth per item -->
+<div class="comment" data-rail="${state.railMode}" style="--depth:0">...</div>
+<div class="comment" data-rail="${state.railMode}" style="--depth:1">...</div>`;
+          copyText(html).then(() => toast("HTML snippet copied"));
+        });
+
+        $("exportPreset").addEventListener("click", () => {
+          const payload = {
+            name: "Custom preset",
+            createdAt: new Date().toISOString(),
+            patch: { ...state },
+          };
+          copyText(JSON.stringify(payload, null, 2)).then(() =>
+            toast("Preset JSON copied")
+          );
+        });
+
+        $("resetBtn").addEventListener("click", () => {
+          activeExampleId = "custom";
+          setState({ ...DEFAULT_STATE }, { exampleId: "custom" });
+          persist();
+          highlightActiveExample();
+          toast("Reset");
+        });
+
+        let searchTimer = null;
+        els.exampleSearch.addEventListener("input", () => {
+          const q = els.exampleSearch.value;
+          if (searchTimer) clearTimeout(searchTimer);
+          searchTimer = setTimeout(() => {
+            renderExampleList(q);
+            highlightActiveExample();
+          }, 80);
+        });
+      }
+
+      // -----------------------------
+      //  Init
+      // -----------------------------
+      (function main() {
+        bindElCache();
+        loadPersisted();
+
+        // Swatches
+        mountSwatches("accentSwatches", ACCENT_SWATCHES, (hex) =>
+          setState({ accentHex: hex }, { exampleId: "custom" })
+        );
+        mountSwatches("surfaceSwatches", SURFACE_SWATCHES, (hex) =>
+          setState({ surfaceHex: hex }, { exampleId: "custom" })
+        );
+        mountSwatches("surface2Swatches", SURFACE2_SWATCHES, (hex) =>
+          setState({ surface2Hex: hex }, { exampleId: "custom" })
+        );
+
+        wireControls();
+        wireActions();
+
+        renderExampleList("");
+        setState(state, { exampleId: "custom" });
+        highlightActiveExample();
+        renderActiveChips();
+        persist();
+      })();
+    </script>
+  </body>
+</html>
