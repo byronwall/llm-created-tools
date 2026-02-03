@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Panel Example</title>
+  </head>
+
+  <body>
+    <script type="module">
+      import { ready, el, cssVar, debounce, store, injectCSS, measure, rafLoop } from "./helpers.js";
+
+      // A small panel builder + controls that bind to CSS vars (and persist)
+      const labPanel = ({ title = "Lab", key = "lab", collapsedByDefault = false } = {}) => {
+        const panelKey = `${key}:collapsed`;
+        const collapsed = store.get(panelKey, collapsedByDefault);
+
+        const root = el(
+          "div",
+          {
+            style: {
+              position: "fixed",
+              top: "12px",
+              right: "12px",
+              width: "320px",
+              maxHeight: "80vh",
+              overflow: "auto",
+              padding: "12px",
+              border: "1px solid rgba(0,0,0,0.15)",
+              borderRadius: "12px",
+              background: "rgba(255,255,255,0.9)",
+              backdropFilter: "blur(10px)",
+              fontFamily: "ui-sans-serif, system-ui",
+              zIndex: 9999,
+            },
+          },
+          []
+        );
+
+        const header = el(
+          "div",
+          { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" } },
+          [
+            el("strong", { style: { fontSize: "14px" } }, title),
+            el(
+              "button",
+              {
+                type: "button",
+                style: {
+                  fontSize: "12px",
+                  padding: "6px 10px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(0,0,0,0.15)",
+                  background: "white",
+                  cursor: "pointer",
+                },
+                onclick: () => {
+                  const isCollapsed = body.style.display === "none";
+                  body.style.display = isCollapsed ? "block" : "none";
+                  store.set(panelKey, !isCollapsed);
+                  console.log("[lab] collapsed =", !isCollapsed);
+                },
+              },
+              collapsed ? "Expand" : "Collapse"
+            ),
+          ]
+        );
+
+        const body = el("div", { style: { marginTop: "10px", display: collapsed ? "none" : "block" } });
+
+        root.append(header, body);
+        document.body.append(root);
+
+        const row = (label, inputEl, hint) =>
+          el("div", { style: { marginBottom: "10px" } }, [
+            el("div", { style: { display: "flex", justifyContent: "space-between", gap: "8px" } }, [
+              el("label", { style: { fontSize: "12px" } }, label),
+              hint ? el("span", { style: { fontSize: "12px", opacity: 0.7 } }, hint) : el("span"),
+            ]),
+            el("div", { style: { marginTop: "6px" } }, inputEl),
+          ]);
+
+        const bindVar = (varName, rawValue, { unit = "" } = {}) => {
+          const value = unit ? `${rawValue}${unit}` : `${rawValue}`;
+          cssVar(varName, value);
+          store.set(`${key}:var:${varName}`, value);
+          return value;
+        };
+
+        const loadVar = (varName, fallback) => store.get(`${key}:var:${varName}`, fallback);
+
+        const controls = {
+          range: ({ label, varName, min, max, step = 1, unit = "", fallback, format = (v) => v }) => {
+            const initial = loadVar(varName, fallback);
+            const initialNum = Number(String(initial).replace(unit, "")) || Number(fallback);
+
+            const valueLabel = el(
+              "span",
+              { style: { fontSize: "12px", opacity: 0.7 } },
+              `${format(initialNum)}${unit}`
+            );
+
+            const input = el("input", {
+              type: "range",
+              min,
+              max,
+              step,
+              value: initialNum,
+              oninput: debounce(16, (e) => {
+                const v = Number(e.target.value);
+                const out = bindVar(varName, v, { unit });
+                valueLabel.textContent = `${format(v)}${unit}`;
+                console.log("[lab] set", varName, "=", out);
+              }),
+            });
+
+            // set CSS var now (so reload applies)
+            bindVar(varName, initialNum, { unit });
+
+            body.append(row(label, input, valueLabel));
+          },
+
+          toggle: ({ label, varName, onValue = "1", offValue = "0", fallback = offValue }) => {
+            const initial = loadVar(varName, fallback);
+            const input = el("input", {
+              type: "checkbox",
+              checked: initial === onValue,
+              onchange: (e) => {
+                const v = e.target.checked ? onValue : offValue;
+                cssVar(varName, v);
+                store.set(`${key}:var:${varName}`, v);
+                console.log("[lab] set", varName, "=", v);
+              },
+            });
+
+            cssVar(varName, initial);
+            body.append(row(label, input));
+          },
+
+          color: ({ label, varName, fallback = "#ff0066" }) => {
+            const initial = loadVar(varName, fallback);
+            const input = el("input", {
+              type: "color",
+              value: initial,
+              oninput: debounce(16, (e) => {
+                const v = e.target.value;
+                cssVar(varName, v);
+                store.set(`${key}:var:${varName}`, v);
+                console.log("[lab] set", varName, "=", v);
+              }),
+              style: { width: "100%", height: "34px" },
+            });
+
+            cssVar(varName, initial);
+            body.append(row(label, input, initial));
+          },
+
+          select: ({ label, varName, options, fallback }) => {
+            const initial = loadVar(varName, fallback ?? options[0]?.value);
+            const input = el(
+              "select",
+              {
+                onchange: (e) => {
+                  const v = e.target.value;
+                  cssVar(varName, v);
+                  store.set(`${key}:var:${varName}`, v);
+                  console.log("[lab] set", varName, "=", v);
+                },
+                style: { width: "100%", height: "34px" },
+              },
+              options.map((o) => el("option", { value: o.value, selected: o.value === initial }, o.label))
+            );
+
+            cssVar(varName, initial);
+            body.append(row(label, input, initial));
+          },
+
+          button: ({ label, onclick }) => {
+            const btn = el(
+              "button",
+              {
+                type: "button",
+                onclick,
+                style: {
+                  width: "100%",
+                  height: "34px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(0,0,0,0.15)",
+                  background: "white",
+                  cursor: "pointer",
+                },
+              },
+              label
+            );
+            body.append(el("div", { style: { marginBottom: "10px" } }, btn));
+          },
+        };
+
+        return { root, body, controls, key };
+      };
+  
+    // -----------------------------
+    // Example: layout + animation + gradients
+    // -----------------------------
+    ready(() => {
+      const setLabCSS = injectCSS("lab-style");
+  
+      // demo markup (optional): a single playground box
+      const playground = el(
+        "div",
+        {
+          id: "playground",
+          style: {
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            padding: "40px",
+          },
+        },
+        el("div", { id: "card" }, [
+          el("h1", { style: { margin: "0 0 10px 0" } }, "CSS Lab"),
+          el("p", { style: { margin: 0, opacity: 0.75 } }, "Tweak vars in the panel → reload persists."),
+        ])
+      );
+      document.body.append(playground);
+  
+      // Core CSS driven by variables
+      setLabCSS(`
+        :root{
+          --gap: 16px;
+          --radius: 18px;
+          --shadow: 0.22;
+          --blur: 18px;
+          --spin: 18s;
+  
+          --bg1: #0b1020;
+          --bg2: #120a2a;
+          --c1: #ff0066;
+          --c2: #00d4ff;
+          --c3: #a3ff12;
+  
+          --tilt: 12deg;
+          --scale: 1;
+          --grain: 0.10;
+          --animOn: 1;
+          --easing: cubic-bezier(.2,.8,.2,1);
+        }
+  
+        body{
+          margin:0;
+          color: white;
+          background:
+            radial-gradient(1200px 600px at 20% 10%, color-mix(in oklab, var(--c1), transparent 50%), transparent 60%),
+            radial-gradient(900px 500px at 80% 30%, color-mix(in oklab, var(--c2), transparent 55%), transparent 60%),
+            radial-gradient(900px 700px at 60% 90%, color-mix(in oklab, var(--c3), transparent 60%), transparent 60%),
+            linear-gradient(180deg, var(--bg1), var(--bg2));
+          overflow-x:hidden;
+        }
+  
+        #card{
+          width:min(720px, 92vw);
+          padding: 28px;
+          border-radius: var(--radius);
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+          box-shadow: 0 18px 60px rgba(0,0,0, calc(var(--shadow)));
+          backdrop-filter: blur(var(--blur));
+          transform: perspective(1000px) rotateX(var(--tilt)) scale(var(--scale));
+          transition: transform 240ms var(--easing), box-shadow 240ms var(--easing);
+          position: relative;
+          isolation: isolate;
+        }
+  
+        #card::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          border-radius: inherit;
+          background:
+            conic-gradient(from 0deg,
+              color-mix(in oklab, var(--c1), transparent 20%),
+              color-mix(in oklab, var(--c2), transparent 20%),
+              color-mix(in oklab, var(--c3), transparent 20%),
+              color-mix(in oklab, var(--c1), transparent 20%)
+            );
+          filter: blur(18px);
+          opacity: 0.65;
+          z-index: -1;
+          animation: spin var(--spin) linear infinite;
+          animation-play-state: calc(var(--animOn)) == 1 ? running : paused; /* harmless if ignored */
+        }
+  
+        @keyframes spin { to { transform: rotate(360deg); } }
+  
+        /* subtle grain overlay for color experiments */
+        body::after{
+          content:"";
+          position:fixed; inset:0;
+          pointer-events:none;
+          background-image:
+            repeating-linear-gradient(0deg, rgba(255,255,255,var(--grain)) 0 1px, transparent 1px 2px);
+          mix-blend-mode: overlay;
+          opacity: 0.12;
+        }
+      `);
+  
+      const lab = labPanel({ title: "CSS Lab", key: "csslab", collapsedByDefault: false });
+  
+      // Layout-ish
+      lab.controls.range({ label: "Radius", varName: "radius", min: 0, max: 48, step: 1, unit: "px", fallback: 18 });
+      lab.controls.range({ label: "Blur", varName: "blur", min: 0, max: 40, step: 1, unit: "px", fallback: 18 });
+      lab.controls.range({ label: "Shadow", varName: "shadow", min: 0, max: 0.6, step: 0.01, unit: "", fallback: 0.22 });
+  
+      // Animation-ish
+      lab.controls.range({ label: "Tilt", varName: "tilt", min: -30, max: 30, step: 1, unit: "deg", fallback: 12 });
+      lab.controls.range({ label: "Scale", varName: "scale", min: 0.8, max: 1.2, step: 0.01, fallback: 1, format: (v) => v.toFixed(2) });
+      lab.controls.range({ label: "Spin speed", varName: "spin", min: 4, max: 40, step: 1, unit: "s", fallback: 18 });
+  
+      lab.controls.select({
+        label: "Easing",
+        varName: "easing",
+        fallback: "cubic-bezier(.2,.8,.2,1)",
+        options: [
+          { label: "Ease out", value: "cubic-bezier(.2,.8,.2,1)" },
+          { label: "Snappy", value: "cubic-bezier(.1,1,.1,1)" },
+          { label: "Linear", value: "linear" },
+          { label: "Ease", value: "ease" },
+        ],
+      });
+  
+      // Color/gradient-ish
+      lab.controls.color({ label: "Accent 1", varName: "c1", fallback: "#ff0066" });
+      lab.controls.color({ label: "Accent 2", varName: "c2", fallback: "#00d4ff" });
+      lab.controls.color({ label: "Accent 3", varName: "c3", fallback: "#a3ff12" });
+      lab.controls.color({ label: "Background top", varName: "bg1", fallback: "#0b1020" });
+      lab.controls.color({ label: "Background bottom", varName: "bg2", fallback: "#120a2a" });
+      lab.controls.range({ label: "Grain", varName: "grain", min: 0, max: 0.3, step: 0.01, fallback: 0.10 });
+  
+      // Useful buttons
+      lab.controls.button({
+        label: "Reset vars",
+        onclick: () => {
+          // nuke only our namespace
+          Object.keys(localStorage)
+            .filter((k) => k.startsWith("csslab:var:"))
+            .forEach((k) => localStorage.removeItem(k));
+          localStorage.removeItem("csslab:collapsed");
+          console.log("[lab] reset complete - reload to re-init defaults");
+          location.reload();
+        },
+      });
+  
+      // Optional: tiny loop to “animate by JS” if you want to compare vs CSS animations
+      // (Disabled by default; uncomment to use)
+      // let t0 = performance.now();
+      // rafLoop((t) => {
+      //   const dt = (t - t0) / 1000;
+      //   cssVar("tilt", `${Math.sin(dt) * 10}deg`);
+      // });
+  
+      measure("initial render", () => {});
+    });
+    </script>
+  </body>
+</html>
