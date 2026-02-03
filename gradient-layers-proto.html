@@ -20,6 +20,33 @@
         </div>
         <div class="card-b">
           <div class="stack" id="app"></div>
+
+          <div class="card mt-18" id="cssExport">
+            <div class="card-h">
+              <h2>CSS export</h2>
+              <div class="row">
+                <button class="btn small" id="copy1d">Copy 1D</button>
+                <button class="btn small" id="copy2d">Copy 2D</button>
+                <button class="btn primary small" id="copyAllExport">Copy all</button>
+              </div>
+            </div>
+            <div class="card-b stack">
+              <div class="muted">These snippets are exactly what drives the previews.</div>
+              <div class="grid2">
+                <div class="stack">
+                  <div class="section-title">1D</div>
+                  <pre class="codebox" id="css1d"></pre>
+                </div>
+                <div class="stack">
+                  <div class="section-title">2D</div>
+                  <pre class="codebox" id="css2d"></pre>
+                </div>
+              </div>
+              <div class="section-title">All</div>
+              <pre class="codebox" id="cssAll"></pre>
+            </div>
+          </div>
+
           <div class="sep"></div>
           <div class="hint">
             Tip: drag 1D stops on the strip; drag 2D points and radius handles on the canvas.
@@ -246,6 +273,28 @@
         ].join("\n");
       };
 
+      const cssBlock1D = (state) => {
+        const c = cssFor1D(state);
+        return [
+          `.preview-1d {`,
+          `  background-color: ${c.base};`,
+          `  background-image: ${c.backgroundImage};`,
+          `  background-blend-mode: ${c.backgroundBlendMode};`,
+          `}`,
+        ].join("\n");
+      };
+
+      const cssBlock2D = (state) => {
+        const c = cssFor2D(state);
+        return [
+          `.preview-2d {`,
+          `  background-color: ${c.base};`,
+          `  background-image: ${c.backgroundImage};`,
+          `  background-blend-mode: ${c.backgroundBlendMode};`,
+          `}`,
+        ].join("\n");
+      };
+
       const copyText = async (text) => {
         try {
           await navigator.clipboard.writeText(text);
@@ -459,6 +508,14 @@
         const btnReset = $("#reset");
         const btnCopyAll = $("#copyAll");
 
+        const btnCopy1D = $("#copy1d");
+        const btnCopy2D = $("#copy2d");
+        const btnCopyAllExport = $("#copyAllExport");
+
+        const css1dEl = $("#css1d");
+        const css2dEl = $("#css2d");
+        const cssAllEl = $("#cssAll");
+
         let state = loadState();
 
         const setStatus = (text, saved = false) => {
@@ -471,6 +528,14 @@
           saveState(state);
           window.clearTimeout(markDirty._t);
           markDirty._t = window.setTimeout(() => setStatus("Saved", true), 220);
+        };
+
+        // “Reactive” sink for derived output: keep stable DOM nodes,
+        // only patch their text when state changes.
+        const renderCssExport = () => {
+          if (css1dEl) css1dEl.textContent = cssBlock1D(state);
+          if (css2dEl) css2dEl.textContent = cssBlock2D(state);
+          if (cssAllEl) cssAllEl.textContent = cssBlockAll(state);
         };
 
         const ensureSelections = () => {
@@ -494,12 +559,13 @@
 
           const oneD = build1D();
           const twoD = build2D();
-          const cssOut = buildCSSOut();
 
-          app.append(oneD, twoD, cssOut);
+          app.append(oneD, twoD);
+
+          // Static markup owns the codeboxes; this just refreshes their contents.
+          renderCssExport();
 
           // After DOM insertion, refresh generated CSS + handle positioning.
-          build1D.updateCSSBoxes?.();
           requestAnimationFrame(() => {
             build1D.renderStops?.();
             build2D.renderPoints?.();
@@ -859,36 +925,7 @@
             preview2dShadow = node;
           };
 
-          const updateCSSBoxes = () => {
-            const out1 = $("#css1d");
-            const out2 = $("#css2d");
-            const outAll = $("#cssAll");
-            if (out1) out1.textContent = cssBlock1D();
-            if (out2) out2.textContent = cssBlock2D();
-            if (outAll) outAll.textContent = cssBlockAll(state);
-          };
-
-          const cssBlock1D = () => {
-            const c = cssFor1D(state);
-            return [
-              `.preview-1d {`,
-              `  background-color: ${c.base};`,
-              `  background-image: ${c.backgroundImage};`,
-              `  background-blend-mode: ${c.backgroundBlendMode};`,
-              `}`,
-            ].join("\n");
-          };
-
-          const cssBlock2D = () => {
-            const c = cssFor2D(state);
-            return [
-              `.preview-2d {`,
-              `  background-color: ${c.base};`,
-              `  background-image: ${c.backgroundImage};`,
-              `  background-blend-mode: ${c.backgroundBlendMode};`,
-              `}`,
-            ].join("\n");
-          };
+          const updateCSSBoxes = () => renderCssExport();
 
           // Expose for other builders (avoids duplicating code)
           build1D.updatePreview2dShadow = updatePreview2dShadow;
@@ -1254,71 +1291,24 @@
           return editor;
         };
 
-        const buildCSSOut = () => {
-          const one = el("div", { class: "card mt-18" }, [
-            el("div", { class: "card-h" }, [
-              el("h2", {}, "CSS export"),
-              el("div", { class: "row" }, [
-                el(
-                  "button",
-                  {
-                    class: "btn small",
-                    onClick: async () => {
-                      const ok = await copyText($("#css1d")?.textContent || "");
-                      setStatus(ok ? "Copied 1D" : "Copy failed", ok);
-                    },
-                  },
-                  "Copy 1D",
-                ),
-                el(
-                  "button",
-                  {
-                    class: "btn small",
-                    onClick: async () => {
-                      const ok = await copyText($("#css2d")?.textContent || "");
-                      setStatus(ok ? "Copied 2D" : "Copy failed", ok);
-                    },
-                  },
-                  "Copy 2D",
-                ),
-                el(
-                  "button",
-                  {
-                    class: "btn primary small",
-                    onClick: async () => {
-                      const ok = await copyText($("#cssAll")?.textContent || "");
-                      setStatus(ok ? "Copied all" : "Copy failed", ok);
-                    },
-                  },
-                  "Copy all",
-                ),
-              ]),
-            ]),
-            el("div", { class: "card-b stack" }, [
-              el("div", { class: "muted" }, "These snippets are exactly what drives the previews."),
-              el("div", { class: "grid2" }, [
-                el("div", { class: "stack" }, [
-                  el("div", { class: "section-title" }, "1D"),
-                  el("pre", { class: "codebox", id: "css1d" }, ""),
-                ]),
-                el("div", { class: "stack" }, [
-                  el("div", { class: "section-title" }, "2D"),
-                  el("pre", { class: "codebox", id: "css2d" }, ""),
-                ]),
-              ]),
-              el("div", { class: "section-title" }, "All"),
-              el("pre", { class: "codebox", id: "cssAll" }, ""),
-            ]),
-          ]);
-
-          build1D.updateCSSBoxes?.();
-          return one;
-        };
-
         // First render
         setStatus("Ready", true);
         render();
         build1D.updateCSSBoxes?.();
+
+        // CSS export buttons (static markup; no JS DOM-building needed)
+        btnCopy1D?.addEventListener("click", async () => {
+          const ok = await copyText(css1dEl?.textContent || "");
+          setStatus(ok ? "Copied 1D" : "Copy failed", ok);
+        });
+        btnCopy2D?.addEventListener("click", async () => {
+          const ok = await copyText(css2dEl?.textContent || "");
+          setStatus(ok ? "Copied 2D" : "Copy failed", ok);
+        });
+        btnCopyAllExport?.addEventListener("click", async () => {
+          const ok = await copyText(cssAllEl?.textContent || "");
+          setStatus(ok ? "Copied all" : "Copy failed", ok);
+        });
 
         // Top buttons
         btnReset.addEventListener("click", () => {
