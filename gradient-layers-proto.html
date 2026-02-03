@@ -71,6 +71,26 @@
 
       const setCSS = injectCSS("gradient-layers-proto-style");
 
+      // Tiny reactive primitive: set() notifies subscribers.
+      // Use this for derived UI text (CSS blocks, preview lines, etc.).
+      const signal = (initial) => {
+        let value = initial;
+        const subs = new Set();
+        return {
+          get: () => value,
+          set: (next) => {
+            if (Object.is(next, value)) return;
+            value = next;
+            for (const fn of subs) fn(value);
+          },
+          subscribe: (fn, { immediate = true } = {}) => {
+            subs.add(fn);
+            if (immediate) fn(value);
+            return () => subs.delete(fn);
+          },
+        };
+      };
+
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
       const lerp = (a, b, t) => a + (b - a) * t;
       const uid = (p = "id") => `${p}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
@@ -516,6 +536,15 @@
         const css2dEl = $("#css2d");
         const cssAllEl = $("#cssAll");
 
+        // Derived view-model signals (text only, stable DOM nodes subscribe to these)
+        const css1dText = signal("");
+        const css2dText = signal("");
+        const cssAllText = signal("");
+
+        css1dEl && css1dText.subscribe((t) => (css1dEl.textContent = t));
+        css2dEl && css2dText.subscribe((t) => (css2dEl.textContent = t));
+        cssAllEl && cssAllText.subscribe((t) => (cssAllEl.textContent = t));
+
         let state = loadState();
 
         const setStatus = (text, saved = false) => {
@@ -530,12 +559,12 @@
           markDirty._t = window.setTimeout(() => setStatus("Saved", true), 220);
         };
 
-        // “Reactive” sink for derived output: keep stable DOM nodes,
-        // only patch their text when state changes.
-        const renderCssExport = () => {
-          if (css1dEl) css1dEl.textContent = cssBlock1D(state);
-          if (css2dEl) css2dEl.textContent = cssBlock2D(state);
-          if (cssAllEl) cssAllEl.textContent = cssBlockAll(state);
+        // Single place that pushes state -> derived view signals.
+        // Call this whenever state mutates (or after render()).
+        const updateDerived = () => {
+          css1dText.set(cssBlock1D(state));
+          css2dText.set(cssBlock2D(state));
+          cssAllText.set(cssBlockAll(state));
         };
 
         const ensureSelections = () => {
@@ -563,7 +592,7 @@
           app.append(oneD, twoD);
 
           // Static markup owns the codeboxes; this just refreshes their contents.
-          renderCssExport();
+          updateDerived();
 
           // After DOM insertion, refresh generated CSS + handle positioning.
           requestAnimationFrame(() => {
@@ -925,7 +954,7 @@
             preview2dShadow = node;
           };
 
-          const updateCSSBoxes = () => renderCssExport();
+          const updateCSSBoxes = () => updateDerived();
 
           // Expose for other builders (avoids duplicating code)
           build1D.updatePreview2dShadow = updatePreview2dShadow;
@@ -1296,17 +1325,20 @@
         render();
         build1D.updateCSSBoxes?.();
 
+        // Ensure derived outputs are current even if CSS export is outside #app.
+        updateDerived();
+
         // CSS export buttons (static markup; no JS DOM-building needed)
         btnCopy1D?.addEventListener("click", async () => {
-          const ok = await copyText(css1dEl?.textContent || "");
+          const ok = await copyText(css1dText.get() || "");
           setStatus(ok ? "Copied 1D" : "Copy failed", ok);
         });
         btnCopy2D?.addEventListener("click", async () => {
-          const ok = await copyText(css2dEl?.textContent || "");
+          const ok = await copyText(css2dText.get() || "");
           setStatus(ok ? "Copied 2D" : "Copy failed", ok);
         });
         btnCopyAllExport?.addEventListener("click", async () => {
-          const ok = await copyText(cssAllEl?.textContent || "");
+          const ok = await copyText(cssAllText.get() || "");
           setStatus(ok ? "Copied all" : "Copy failed", ok);
         });
 
