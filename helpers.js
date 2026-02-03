@@ -47,6 +47,26 @@ export const debounce = (ms, fn) => {
   };
 };
 
+// Tiny reactive primitive: set() notifies subscribers.
+// Use this for derived UI text (CSS blocks, preview lines, etc.).
+export const signal = (initial) => {
+  let value = initial;
+  const subs = new Set();
+  return {
+    get: () => value,
+    set: (next) => {
+      if (Object.is(next, value)) return;
+      value = next;
+      for (const fn of subs) fn(value);
+    },
+    subscribe: (fn, { immediate = true } = {}) => {
+      subs.add(fn);
+      if (immediate) fn(value);
+      return () => subs.delete(fn);
+    },
+  };
+};
+
 export const store = {
   get: (k, fallback = null) => {
     try {

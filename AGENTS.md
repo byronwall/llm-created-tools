@@ -103,6 +103,27 @@ All exports are named exports.
 
 - `debounce(ms, fn) => (...args) => void` — call after `ms` idle
 
+### Tiny reactive state
+
+- `signal(initial) => { get, set, subscribe }`
+  - `get() => value`
+  - `set(next) => void` — updates value and notifies subscribers (no-op if `Object.is(next, value)`)
+  - `subscribe(fn, { immediate = true } = {}) => unsubscribeFn`
+    - Calls `fn(value)` immediately by default
+    - Returns an `unsubscribe()` function
+
+Example:
+
+```js
+import { signal } from "./helpers.js";
+
+const count = signal(0);
+const unsubscribe = count.subscribe((v) => console.log("count:", v));
+
+count.set(1); // logs: count: 1
+unsubscribe();
+```
+
 ### Local storage
 
 - `store.get(key, fallback = null) => any` — JSON read with safe fallback

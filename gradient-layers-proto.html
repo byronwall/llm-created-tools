@@ -63,6 +63,7 @@
         ready,
         el,
         debounce,
+        signal,
         injectCSS,
         store,
         hasDebug,
@@ -71,26 +72,6 @@
       } from "./helpers.js";
 
       const setCSS = injectCSS("gradient-layers-proto-style");
-
-      // Tiny reactive primitive: set() notifies subscribers.
-      // Use this for derived UI text (CSS blocks, preview lines, etc.).
-      const signal = (initial) => {
-        let value = initial;
-        const subs = new Set();
-        return {
-          get: () => value,
-          set: (next) => {
-            if (Object.is(next, value)) return;
-            value = next;
-            for (const fn of subs) fn(value);
-          },
-          subscribe: (fn, { immediate = true } = {}) => {
-            subs.add(fn);
-            if (immediate) fn(value);
-            return () => subs.delete(fn);
-          },
-        };
-      };
 
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
       const lerp = (a, b, t) => a + (b - a) * t;
