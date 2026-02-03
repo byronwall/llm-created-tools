@@ -117,6 +117,18 @@ All exports are named exports.
 
 - `rafLoop(fn) => stopFn` — calls `fn(t)` each RAF; `stopFn()` cancels
 
+### Debug helpers
+
+- `hasDebug() => boolean`
+  - Always returns `true` in this repo (debug is always enabled).
+
+- `makeLogger(namespace = "app", enabled = false) => (...args) => void`
+  - Namespaced `console.log` gated by `enabled`.
+
+- `installGlobalErrorHandlers({ namespace = "app", enabled = true, onError?, onRejection? } = {}) => () => void`
+  - Hooks `window.error` + `unhandledrejection` (helpful while prototyping).
+  - Returns an uninstall function.
+
 ## Styles (`./app.css`)
 
 `app.css` is intentionally “app-agnostic”: tokens + composable components + a few utilities.

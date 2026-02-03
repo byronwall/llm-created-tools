@@ -29,7 +29,18 @@
     </div>
 
     <script type="module">
-      import { $, $$, ready, el, debounce, injectCSS, store } from "./helpers.js";
+      import {
+        $,
+        $$,
+        ready,
+        el,
+        debounce,
+        injectCSS,
+        store,
+        hasDebug,
+        makeLogger,
+        installGlobalErrorHandlers,
+      } from "./helpers.js";
 
       const setCSS = injectCSS("gradient-layers-proto-style");
 
@@ -244,6 +255,9 @@
         }
       };
 
+      const log = makeLogger("gradient", true);
+      installGlobalErrorHandlers({ namespace: "gradient", enabled: true });
+
       const field = (label, control) =>
         el("div", { class: "field" }, [el("label", {}, label), control]);
 
@@ -252,7 +266,11 @@
           "select",
           {
             value,
-            onChange: (e) => onChange(e.target.value),
+            onChange: (e) => {
+              const v = e.target.value;
+              log("select", v);
+              onChange(v);
+            },
           },
           options.map((o) => el("option", { value: o }, o)),
         );
@@ -274,14 +292,22 @@
           min,
           max,
           step: step ?? 1,
-          onInput: (e) => onInput(Number(e.target.value)),
+          onInput: (e) => {
+            const v = Number(e.target.value);
+            log("range", v);
+            onInput(v);
+          },
         });
 
       const color = (value, onInput) =>
         el("input", {
           type: "color",
           value: String(value || "#ff00ff"),
-          onInput: (e) => onInput(e.target.value),
+          onInput: (e) => {
+            const v = e.target.value;
+            log("color", v);
+            onInput(v);
+          },
         });
 
       const codebox = (text) => el("pre", { class: "codebox" }, text);
@@ -457,6 +483,13 @@
 
         const render = () => {
           ensureSelections();
+          log("render", {
+            oneDLayers: state.oneD.layers?.length ?? 0,
+            twoDPoints: state.twoD.points?.length ?? 0,
+            selLayer: state.oneD.selectedLayerId,
+            selStop: state.oneD.selectedStopId,
+            selPoint: state.twoD.selectedPointId,
+          });
           app.innerHTML = "";
 
           const oneD = build1D();
@@ -506,6 +539,7 @@
                 {
                   class: "btn small",
                   onClick: () => {
+                    log("add layer");
                     const n = (state.oneD.layers?.length ?? 0) + 1;
                     const id = uid("layer");
                     state.oneD.layers.push({
@@ -572,6 +606,7 @@
                     state.oneD.selectedLayerId === layer.id ? "rgba(37,99,235,0.35)" : "var(--border)",
                 },
                 onClick: () => {
+                  log("select layer", layer.id);
                   state.oneD.selectedLayerId = layer.id;
                   state.oneD.selectedStopId = layer.stops?.[0]?.id ?? null;
                   render();
@@ -586,6 +621,7 @@
                 class: "btn danger small",
                 title: "Delete layer",
                 onClick: () => {
+                  log("delete layer", layer.id);
                   if (state.oneD.layers.length <= 1) return;
                   state.oneD.layers = state.oneD.layers.filter((l) => l.id !== layer.id);
                   if (state.oneD.selectedLayerId === layer.id) {
@@ -887,6 +923,7 @@
                 {
                   class: "btn small",
                   onClick: () => {
+                    log("add point");
                     const n = (state.twoD.points?.length ?? 0) + 1;
                     const id = uid("pt");
                     state.twoD.points.push({
@@ -986,6 +1023,7 @@
                 class: "btn danger small",
                 title: "Delete point",
                 onClick: () => {
+                  log("delete point", p.id);
                   if (state.twoD.points.length <= 1) return;
                   state.twoD.points = state.twoD.points.filter((q) => q.id !== p.id);
                   if (state.twoD.selectedPointId === p.id)

@@ -18,7 +18,9 @@ export const el = (tag, attrs = {}, children = []) => {
     else if (k === "style" && typeof v === "object")
       Object.assign(node.style, v);
     else if (k.startsWith("on") && typeof v === "function")
-      node.addEventListener(k.slice(2), v);
+      // Allow ergonomic props like onClick/onInput/onChange.
+      // DOM event names are lowercase ("click", "input", ...).
+      node.addEventListener(k.slice(2).toLowerCase(), v);
     else node.setAttribute(k, String(v));
   }
   for (const child of Array.isArray(children) ? children : [children]) {
@@ -97,5 +99,55 @@ export const rafLoop = (fn) => {
   return () => {
     running = false;
     cancelAnimationFrame(raf);
+  };
+};
+
+// -----------------------------
+// debug helpers
+// -----------------------------
+
+// Repo-wide dev default: debug is always enabled.
+// (No query-param gating; keep demos deterministic.)
+export const hasDebug = () => true;
+
+// Small namespaced logger. Use with `const log = makeLogger("demo", hasDebug());`.
+export const makeLogger = (namespace = "app", enabled = false) => {
+  const prefix = `[${namespace}]`;
+  return (...args) => enabled && console.log(prefix, ...args);
+};
+
+// Install global error hooks (useful during prototyping).
+// Returns an uninstall function.
+export const installGlobalErrorHandlers = ({
+  namespace = "app",
+  enabled = true,
+  onError,
+  onRejection,
+} = {}) => {
+  if (!enabled) return () => {};
+  const prefix = `[${namespace}]`;
+
+  const onWindowError = (e) => {
+    try {
+      console.warn(prefix, "window.error", e?.message || e);
+    } finally {
+      onError?.(e);
+    }
+  };
+
+  const onUnhandledRejection = (e) => {
+    try {
+      console.warn(prefix, "unhandledrejection", e?.reason || e);
+    } finally {
+      onRejection?.(e);
+    }
+  };
+
+  window.addEventListener("error", onWindowError);
+  window.addEventListener("unhandledrejection", onUnhandledRejection);
+
+  return () => {
+    window.removeEventListener("error", onWindowError);
+    window.removeEventListener("unhandledrejection", onUnhandledRejection);
   };
 };
