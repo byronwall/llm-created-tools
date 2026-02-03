@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Palette Gap Filler (OKLCH) - Single File</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#101a33; --muted:#9fb0d0; --text:#e9efff; --border:rgba(255,255,255,.12); }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 20% 0%, #152656, var(--bg));
+      color: var(--text);
+    }
+    header { padding:20px 22px 10px; border-bottom: 1px solid var(--border); }
+    header h1 { margin:0; font-size:18px; font-weight:700; letter-spacing:.2px; }
+    header p { margin:8px 0 0; color: var(--muted); font-size:13px; line-height:1.4; max-width: 1100px; }
+    main { padding: 16px 22px 26px; max-width: 1400px; margin: 0 auto; }
+    .grid { display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:start; }
+    @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: rgba(16,26,51,.75); border: 1px solid var(--border); border-radius: 14px; overflow:hidden; box-shadow: 0 18px 45px rgba(0,0,0,.35); }
+    .card .hd { padding: 12px 14px; border-bottom: 1px solid var(--border); display:flex; gap:10px; justify-content:space-between; align-items:center; }
+    .card .hd h2 { margin:0; font-size:14px; }
+    .card .bd { padding: 12px 14px; }
+    textarea { width:100%; min-height: 240px; resize: vertical; border-radius: 12px; border:1px solid var(--border);
+      background: rgba(0,0,0,.25); color: var(--text); padding:10px 10px; line-height:1.4; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px;
+    }
+    label { display:block; font-size: 12px; color: var(--muted); margin: 10px 0 6px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .row > * { flex: 1 1 auto; }
+    select, input[type="number"], input[type="text"] {
+      width:100%;
+      border-radius: 12px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.25);
+      color: var(--text);
+      padding: 10px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    .btnrow { display:flex; gap:10px; margin-top: 12px; }
+    button {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform .05s ease, background .15s ease;
+    }
+    button:hover { background: rgba(255,255,255,.12); }
+    button:active { transform: translateY(1px); }
+    .small { font-size: 12px; color: var(--muted); line-height:1.35; }
+    .warn { color: #ffd38a; }
+    .ok { color: #a7ffcd; }
+    .outTabs { display:flex; gap:8px; flex-wrap:wrap; }
+    .tab { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,.06); font-size: 12px; cursor:pointer; user-select:none; }
+    .tab.active { background: rgba(255,255,255,.14); }
+    pre {
+      margin:10px 0 0;
+      padding: 10px 10px;
+      background: rgba(0,0,0,.28);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow:auto;
+      max-height: 280px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .scale { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .scale:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+    .scaleTitle { display:flex; gap:10px; align-items:baseline; justify-content:space-between; }
+    .scaleTitle h3 { margin:0; font-size: 13px; }
+    .scaleTitle .meta { color: var(--muted); font-size: 12px; }
+    .swatches { display:grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap:10px; margin-top: 10px; }
+    .swatch {
+      border-radius: 14px; border: 1px solid var(--border); overflow:hidden;
+      background: rgba(0,0,0,.18);
+    }
+    .chip { height: 56px; position: relative; }
+    .chip span {
+      position:absolute; left:8px; bottom:6px;
+      font-size: 11px; padding: 2px 6px; border-radius: 999px;
+      background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15);
+      backdrop-filter: blur(6px);
+    }
+    .swatch .info { padding: 8px; display:flex; flex-direction:column; gap:4px; }
+    .k { font-size: 11px; color: var(--muted); }
+    .v { font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .actions { display:flex; gap:8px; margin-top: 6px; }
+    .actions button { padding: 6px 9px; font-size: 12px; border-radius: 10px; }
+    .pill { display:inline-flex; gap:8px; align-items:center; padding: 8px 10px; border-radius: 12px; border:1px solid var(--border); background: rgba(0,0,0,.18); }
+    .pill b { font-size: 12px; }
+    .pill span { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Palette Gap Filler (OKLCH) — single-file index.html</h1>
+    <p>
+      Paste 1+ color scales (hex). If you paste <b>11 colors</b>, it assumes Tailwind-11 stops (50..950) and expands to
+      <b>24 steps</b> (0, 50, 100, 200..900, 1000..2300). Interpolation defaults to <b>OKLCH</b> and will try to keep colors in gamut.
+    </p>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <div class="hd">
+          <h2>Input</h2>
+          <div class="pill"><b id="parseCount">0</b><span>colors parsed</span></div>
+        </div>
+        <div class="bd">
+          <label for="input">Paste colors (hex). You can paste multiple scales separated by a blank line.</label>
+          <textarea id="input" spellcheck="false">#FCF3E6
+#F8E8B4
+#F0CF6B
+#E5E5EF
+#4A9ACE
+#2C2CDB
+#494975
+#6666A3
+#7D7DB1
+#8888B8
+#8888B8</textarea>
+
+          <div class="row">
+            <div>
+              <label>Input stop set</label>
+              <select id="inputStops">
+                <option value="auto" selected>Auto (based on count)</option>
+                <option value="tw11">Tailwind-11 (50..950)</option>
+                <option value="tints24">Tints-24 (0,50,100,200..900,1000..2300)</option>
+                <option value="even">Evenly spaced (0..1)</option>
+              </select>
+            </div>
+            <div>
+              <label>Output stop set</label>
+              <select id="outputStops">
+                <option value="tints24" selected>Tints-24 (0..2300)</option>
+                <option value="tw11">Tailwind-11 (50..950)</option>
+                <option value="custom">Custom count (even)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Custom output count (when Output stop set = Custom count)</label>
+              <input id="customCount" type="number" min="2" max="256" value="24" />
+            </div>
+            <div>
+              <label>Interpolation space</label>
+              <select id="space">
+                <option value="oklch" selected>OKLCH (recommended)</option>
+                <option value="oklab">OKLab</option>
+                <option value="rgb">sRGB</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Gamut handling</label>
+              <select id="gamut">
+                <option value="clip">Clip to sRGB (fast)</option>
+                <option value="reduceC" selected>Reduce chroma to fit (better)</option>
+              </select>
+            </div>
+            <div>
+              <label>Scale name (optional)</label>
+              <input id="scaleName" type="text" placeholder="e.g. primary" value="scale" />
+            </div>
+          </div>
+
+          <div class="btnrow">
+            <button id="btnGenerate">Generate</button>
+            <button id="btnDemo">Load demo</button>
+            <button id="btnClear">Clear</button>
+          </div>
+
+          <p class="small" id="status"></p>
+          <p class="small">
+            Tips:
+            <br>• Multiple scales: separate them with a blank line.
+            <br>• Any junk text is fine — it extracts hex codes in order.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd">
+          <h2>Output</h2>
+          <div class="outTabs">
+            <div class="tab active" data-tab="view">Viewer</div>
+            <div class="tab" data-tab="json">JSON</div>
+            <div class="tab" data-tab="css">CSS Vars</div>
+            <div class="tab" data-tab="tw">Tailwind Object</div>
+          </div>
+        </div>
+        <div class="bd">
+          <div id="tab-view"></div>
+          <div id="tab-json" style="display:none;">
+            <div class="actions">
+              <button id="copyJson">Copy JSON</button>
+            </div>
+            <pre id="jsonOut"></pre>
+          </div>
+          <div id="tab-css" style="display:none;">
+            <div class="actions">
+              <button id="copyCss">Copy CSS</button>
+            </div>
+            <pre id="cssOut"></pre>
+          </div>
+          <div id="tab-tw" style="display:none;">
+            <div class="actions">
+              <button id="copyTw">Copy Tailwind</button>
+            </div>
+            <pre id="twOut"></pre>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // ---------------------------
+    // Small utilities
+    // ---------------------------
+    const $ = (id) => document.getElementById(id);
+    const clamp01 = (x) => Math.min(1, Math.max(0, x));
+
+    function hexToRgb01(hex) {
+      let h = hex.trim().replace(/^#/, "");
+      if (h.length === 3) h = h.split("").map(c => c + c).join("");
+      if (h.length === 8) h = h.slice(0, 6); // ignore alpha if present
+      if (h.length !== 6) return null;
+      const n = parseInt(h, 16);
+      return {
+        r: ((n >> 16) & 255) / 255,
+        g: ((n >> 8) & 255) / 255,
+        b: (n & 255) / 255
+      };
+    }
+
+    function rgb01ToHex({r,g,b}) {
+      const to255 = (x) => Math.round(clamp01(x) * 255);
+      const h = (n) => n.toString(16).padStart(2, "0");
+      return "#" + h(to255(r)) + h(to255(g)) + h(to255(b));
+    }
+
+    function parseHexColors(text) {
+      // Extract hex codes in order; supports #RGB, #RRGGBB, #RRGGBBAA
+      const re = /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g;
+      const matches = text.match(re) || [];
+      return matches.map(m => {
+        let h = m.toUpperCase();
+        // normalize #RGB -> #RRGGBB
+        const inner = h.slice(1);
+        if (inner.length === 3) {
+          const exp = inner.split("").map(c => c+c).join("");
+          return "#" + exp;
+        }
+        if (inner.length === 8) return "#" + inner.slice(0,6);
+        return h;
+      });
+    }
+
+    function splitScales(text) {
+      // Split by blank lines into multiple scale blocks
+      const blocks = text
+        .split(/\n\s*\n+/g)
+        .map(b => b.trim())
+        .filter(Boolean);
+
+      if (blocks.length <= 1) return [{ name: $("scaleName").value.trim() || "scale", raw: text }];
+
+      return blocks.map((raw, i) => ({
+        name: `${($("scaleName").value.trim() || "scale")}-${i+1}`,
+        raw
+      }));
+    }
+
+    async function copyText(s) {
+      try {
+        await navigator.clipboard.writeText(s);
+        setStatus("Copied to clipboard.", "ok");
+      } catch {
+        setStatus("Clipboard copy failed (browser permissions).", "warn");
+      }
+    }
+
+    function setStatus(msg, tone="") {
+      const el = $("status");
+      el.textContent = msg;
+      el.className = "small " + (tone === "ok" ? "ok" : tone === "warn" ? "warn" : "");
+    }
+
+    // ---------------------------
+    // Stop sets
+    // ---------------------------
+    const STOPSETS = {
+      tw11: {
+        name: "Tailwind-11",
+        stops: [50,100,200,300,400,500,600,700,800,900,950]
+      },
+      tints24: {
+        name: "Tints-24",
+        // 24 values, matching your screenshot style: 0, 50, 100, 200..900, 1000..2300
+        stops: [0,50,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300]
+      },
+      even: {
+        name: "Even 0..1",
+        stops: null // computed per scale
+      }
+    };
+
+    function resolveInputStops(count) {
+      const sel = $("inputStops").value;
+      if (sel === "tw11") return STOPSETS.tw11.stops;
+      if (sel === "tints24") return STOPSETS.tints24.stops;
+      if (sel === "even") return evenStops(count);
+      // auto
+      if (count === 11) return STOPSETS.tw11.stops;
+      if (count === 24) return STOPSETS.tints24.stops;
+      return evenStops(count);
+    }
+
+    function resolveOutputStops() {
+      const sel = $("outputStops").value;
+      if (sel === "tw11") return STOPSETS.tw11.stops;
+      if (sel === "tints24") return STOPSETS.tints24.stops;
+      const n = Math.max(2, Math.min(256, Number($("customCount").value || 24)));
+      return evenStops(n);
+    }
+
+    function evenStops(n) {
+      if (n <= 1) return [0];
+      const out = [];
+      for (let i=0;i<n;i++) out.push(i/(n-1));
+      return out;
+    }
+
+    // ---------------------------
+    // Color conversion: sRGB <-> linear <-> OKLab <-> OKLCH
+    // Reference math: Björn Ottosson (OKLab)
+    // ---------------------------
+    function srgbToLinear(u) {
+      return (u <= 0.04045) ? (u / 12.92) : Math.pow((u + 0.055) / 1.055, 2.4);
+    }
+    function linearToSrgb(u) {
+      return (u <= 0.0031308) ? (12.92 * u) : (1.055 * Math.pow(u, 1/2.4) - 0.055);
+    }
+
+    function rgbToOklab(rgb) {
+      const r = srgbToLinear(rgb.r), g = srgbToLinear(rgb.g), b = srgbToLinear(rgb.b);
+
+      const l = 0.4122214708*r + 0.5363325363*g + 0.0514459929*b;
+      const m = 0.2119034982*r + 0.6806995451*g + 0.1073969566*b;
+      const s = 0.0883024619*r + 0.2817188376*g + 0.6299787005*b;
+
+      const l_ = Math.cbrt(l);
+      const m_ = Math.cbrt(m);
+      const s_ = Math.cbrt(s);
+
+      return {
+        L: 0.2104542553*l_ + 0.7936177850*m_ - 0.0040720468*s_,
+        a: 1.9779984951*l_ - 2.4285922050*m_ + 0.4505937099*s_,
+        b: 0.0259040371*l_ + 0.7827717662*m_ - 0.8086757660*s_
+      };
+    }
+
+    function oklabToRgb(lab) {
+      const l_ = lab.L + 0.3963377774*lab.a + 0.2158037573*lab.b;
+      const m_ = lab.L - 0.1055613458*lab.a - 0.0638541728*lab.b;
+      const s_ = lab.L - 0.0894841775*lab.a - 1.2914855480*lab.b;
+
+      const l = l_ * l_ * l_;
+      const m = m_ * m_ * m_;
+      const s = s_ * s_ * s_;
+
+      const rLin = +4.0767416621*l - 3.3077115913*m + 0.2309699292*s;
+      const gLin = -1.2684380046*l + 2.6097574011*m - 0.3413193965*s;
+      const bLin = -0.0041960863*l - 0.7034186147*m + 1.7076147010*s;
+
+      return {
+        r: linearToSrgb(rLin),
+        g: linearToSrgb(gLin),
+        b: linearToSrgb(bLin)
+      };
+    }
+
+    function oklabToOklch(lab) {
+      const C = Math.sqrt(lab.a*lab.a + lab.b*lab.b);
+      let h = Math.atan2(lab.b, lab.a) * 180 / Math.PI;
+      if (h < 0) h += 360;
+      return { L: lab.L, C, h };
+    }
+
+    function oklchToOklab(lch) {
+      const hr = lch.h * Math.PI / 180;
+      return { L: lch.L, a: lch.C * Math.cos(hr), b: lch.C * Math.sin(hr) };
+    }
+
+    function inGamut01(rgb) {
+      return rgb.r >= 0 && rgb.r <= 1 && rgb.g >= 0 && rgb.g <= 1 && rgb.b >= 0 && rgb.b <= 1;
+    }
+
+    function clipRgb01(rgb) {
+      return { r: clamp01(rgb.r), g: clamp01(rgb.g), b: clamp01(rgb.b) };
+    }
+
+    function oklchToSrgbGamut(lch, mode) {
+      // mode: "clip" or "reduceC"
+      let rgb = oklabToRgb(oklchToOklab(lch));
+      if (mode === "clip") return clipRgb01(rgb);
+
+      // reduce chroma to fit in gamut (binary search on C)
+      if (inGamut01(rgb)) return rgb;
+
+      let lo = 0, hi = lch.C;
+      let best = null;
+      for (let i=0;i<28;i++) {
+        const mid = (lo + hi) / 2;
+        const cand = { L: lch.L, C: mid, h: lch.h };
+        const rgbMid = oklabToRgb(oklchToOklab(cand));
+        if (inGamut01(rgbMid)) {
+          best = rgbMid;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      return best ? best : clipRgb01(rgb);
+    }
+
+    function lerp(a,b,t){ return a + (b-a)*t; }
+    function lerpHue(h0,h1,t) {
+      // shortest-path hue interpolation (degrees)
+      let d = ((h1 - h0 + 540) % 360) - 180;
+      return (h0 + d * t + 360) % 360;
+    }
+
+    function interpolateColor(hex0, hex1, t, space, gamutMode) {
+      const r0 = hexToRgb01(hex0), r1 = hexToRgb01(hex1);
+      if (!r0 || !r1) return null;
+
+      if (space === "rgb") {
+        const rgb = { r: lerp(r0.r, r1.r, t), g: lerp(r0.g, r1.g, t), b: lerp(r0.b, r1.b, t) };
+        return rgb01ToHex(clipRgb01(rgb));
+      }
+
+      const lab0 = rgbToOklab(r0);
+      const lab1 = rgbToOklab(r1);
+
+      if (space === "oklab") {
+        const lab = { L: lerp(lab0.L, lab1.L, t), a: lerp(lab0.a, lab1.a, t), b: lerp(lab0.b, lab1.b, t) };
+        const rgb = oklabToRgb(lab);
+        return rgb01ToHex(clipRgb01(rgb));
+      }
+
+      // OKLCH
+      const lch0 = oklabToOklch(lab0);
+      const lch1 = oklabToOklch(lab1);
+
+      const lch = {
+        L: lerp(lch0.L, lch1.L, t),
+        C: lerp(lch0.C, lch1.C, t),
+        h: lerpHue(lch0.h, lch1.h, t)
+      };
+
+      const rgb = oklchToSrgbGamut(lch, gamutMode);
+      return rgb01ToHex(rgb);
+    }
+
+    // ---------------------------
+    // Scale generation (piecewise across stops)
+    // ---------------------------
+    function generateScale(anchorHexes, anchorStops, outStops, space, gamutMode) {
+      // anchorStops and outStops can be numeric stops (either 0..2300 or 0..1)
+      // Make sure they’re increasing.
+      const anchors = anchorHexes.map((hex, i) => ({ hex, x: anchorStops[i] }));
+      anchors.sort((a,b) => a.x - b.x);
+
+      const out = outStops.map(x => {
+        // clamp to endpoints
+        if (x <= anchors[0].x) return { x, hex: anchors[0].hex };
+        if (x >= anchors[anchors.length-1].x) return { x, hex: anchors[anchors.length-1].hex };
+
+        // find segment
+        let j = 0;
+        while (j < anchors.length-1 && !(x >= anchors[j].x && x <= anchors[j+1].x)) j++;
+
+        const a0 = anchors[j], a1 = anchors[j+1];
+        const t = (x - a0.x) / (a1.x - a0.x);
+
+        const hex = interpolateColor(a0.hex, a1.hex, t, space, gamutMode) || a0.hex;
+        return { x, hex };
+      });
+
+      return out;
+    }
+
+    function stopLabelFor(outStops, i, outputStopsKey) {
+      // outStops can be [0..1] or numeric. Use labels if known.
+      const sel = outputStopsKey;
+      if (sel === "tints24") return String(STOPSETS.tints24.stops[i]);
+      if (sel === "tw11") return String(STOPSETS.tw11.stops[i]);
+      // custom/even: show index
+      return String(i);
+    }
+
+    // ---------------------------
+    // Rendering + outputs
+    // ---------------------------
+    function renderScales(scales) {
+      const view = $("tab-view");
+      view.innerHTML = "";
+
+      const outStopsKey = $("outputStops").value;
+      const outStops = resolveOutputStops();
+      const space = $("space").value;
+      const gamutMode = $("gamut").value;
+
+      const jsonAll = {};
+      const cssBlocks = [];
+      const twBlocks = [];
+
+      scales.forEach((scale, si) => {
+        const anchorHexes = parseHexColors(scale.raw);
+        const count = anchorHexes.length;
+
+        if (!count) return;
+
+        const inStops = resolveInputStops(count);
+        // If inStops is 0..1 but output is numeric, keep both in 0..1 space.
+        // If one is numeric and the other is 0..1, normalize both to 0..1.
+        const outStopsResolved = outStops.slice();
+
+        const inIsUnit = inStops.every(x => x >= 0 && x <= 1);
+        const outIsUnit = outStopsResolved.every(x => x >= 0 && x <= 1);
+
+        let inStopsFinal = inStops.slice();
+        let outStopsFinal = outStopsResolved.slice();
+
+        if (inIsUnit && !outIsUnit) {
+          // normalize out numeric to 0..1
+          const min = outStopsResolved[0], max = outStopsResolved[outStopsResolved.length-1];
+          outStopsFinal = outStopsResolved.map(x => (x - min) / (max - min));
+        } else if (!inIsUnit && outIsUnit) {
+          // normalize in numeric to 0..1
+          const min = inStops[0], max = inStops[inStops.length-1];
+          inStopsFinal = inStops.map(x => (x - min) / (max - min));
+        }
+
+        const generated = generateScale(anchorHexes, inStopsFinal, outStopsFinal, space, gamutMode);
+
+        // Build map for code outputs
+        const labelKey = outStopsKey;
+        const scaleObj = {};
+        generated.forEach((p, i) => {
+          const key = stopLabelFor(resolveOutputStops(), i, labelKey);
+          scaleObj[key] = p.hex;
+        });
+
+        jsonAll[scale.name] = scaleObj;
+
+        const cssVarLines = Object.entries(scaleObj)
+          .map(([k,v]) => `  --color-${scale.name}-${k}: ${v};`)
+          .join("\n");
+        cssBlocks.push(`/* ${scale.name} */\n:root {\n${cssVarLines}\n}\n`);
+
+        twBlocks.push(`// ${scale.name}\n${scale.name}: ${JSON.stringify(scaleObj, null, 2)}`);
+
+        // Render viewer section
+        const section = document.createElement("div");
+        section.className = "scale";
+
+        const title = document.createElement("div");
+        title.className = "scaleTitle";
+        title.innerHTML = `<h3>${scale.name}</h3><div class="meta">${count} → ${generated.length} (${space.toUpperCase()}, ${gamutMode})</div>`;
+        section.appendChild(title);
+
+        const sw = document.createElement("div");
+        sw.className = "swatches";
+
+        const outStopsForLabels = resolveOutputStops();
+        generated.forEach((p, i) => {
+          const k = stopLabelFor(outStopsForLabels, i, outStopsKey);
+
+          const box = document.createElement("div");
+          box.className = "swatch";
+
+          const chip = document.createElement("div");
+          chip.className = "chip";
+          chip.style.background = p.hex;
+          chip.innerHTML = `<span>${k}</span>`;
+
+          const info = document.createElement("div");
+          info.className = "info";
+          info.innerHTML = `
+            <div class="k">hex</div>
+            <div class="v">${p.hex}</div>
+            <div class="actions">
+              <button data-copy="${p.hex}">Copy</button>
+            </div>
+          `;
+
+          box.appendChild(chip);
+          box.appendChild(info);
+          sw.appendChild(box);
+        });
+
+        section.appendChild(sw);
+        view.appendChild(section);
+      });
+
+      // Hook up swatch copy buttons
+      view.querySelectorAll("button[data-copy]").forEach(btn => {
+        btn.addEventListener("click", () => copyText(btn.getAttribute("data-copy")));
+      });
+
+      // Outputs
+      $("jsonOut").textContent = JSON.stringify(jsonAll, null, 2);
+      $("cssOut").textContent = cssBlocks.join("\n");
+      $("twOut").textContent = `module.exports = {\n  theme: {\n    extend: {\n      colors: {\n${Object.keys(jsonAll).map(name => `        ${twBlocks.find(b => b.startsWith("// " + name)).split("\n").slice(1).join("\n").replace(/^/gm,"        ")},`).join("\n")}\n      }\n    }\n  }\n}\n`;
+
+      return { jsonAll, css: $("cssOut").textContent, tw: $("twOut").textContent };
+    }
+
+    function collectScales() {
+      const text = $("input").value || "";
+      const blocks = splitScales(text);
+
+      // update parsed count badge (total hex found)
+      const total = blocks.reduce((acc,b) => acc + parseHexColors(b.raw).length, 0);
+      $("parseCount").textContent = total;
+
+      return blocks;
+    }
+
+    // ---------------------------
+    // Tabs
+    // ---------------------------
+    function setTab(name) {
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+      ["view","json","css","tw"].forEach(k => {
+        $("tab-" + k).style.display = (k === name) ? "" : "none";
+      });
+    }
+
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => setTab(tab.dataset.tab));
+    });
+
+    // ---------------------------
+    // Buttons + events
+    // ---------------------------
+    function generateNow() {
+      const scales = collectScales();
+      const anyColors = scales.some(s => parseHexColors(s.raw).length > 0);
+      if (!anyColors) {
+        setStatus("No hex colors found. Paste some #RRGGBB values.", "warn");
+        return;
+      }
+
+      const outSel = $("outputStops").value;
+      if (outSel === "custom") {
+        const n = Number($("customCount").value || 24);
+        if (!Number.isFinite(n) || n < 2) {
+          setStatus("Custom output count must be >= 2.", "warn");
+          return;
+        }
+      }
+
+      renderScales(scales);
+      setStatus("Generated palettes successfully.", "ok");
+    }
+
+    $("btnGenerate").addEventListener("click", generateNow);
+
+    $("btnDemo").addEventListener("click", () => {
+      $("scaleName").value = "primary";
+      $("input").value =
+`#FCF3E6
+#FCFEDF
+#F8F8FA
+#F0F0F6
+#E5E5EF
+#D9D9E9
+#CECEE1
+#C2C2DB
+#B5B5D5
+#A9A9CE
+#9E9EC6`;
+      $("inputStops").value = "auto";
+      $("outputStops").value = "tints24";
+      $("space").value = "oklch";
+      $("gamut").value = "reduceC";
+      generateNow();
+    });
+
+    $("btnClear").addEventListener("click", () => {
+      $("input").value = "";
+      $("parseCount").textContent = "0";
+      $("tab-view").innerHTML = "";
+      $("jsonOut").textContent = "";
+      $("cssOut").textContent = "";
+      $("twOut").textContent = "";
+      setStatus("Cleared.", "");
+    });
+
+    // Copy output blocks
+    $("copyJson").addEventListener("click", () => copyText($("jsonOut").textContent));
+    $("copyCss").addEventListener("click", () => copyText($("cssOut").textContent));
+    $("copyTw").addEventListener("click", () => copyText($("twOut").textContent));
+
+    // Auto-regenerate on some control changes
+    ["inputStops","outputStops","customCount","space","gamut","scaleName"].forEach(id => {
+      $(id).addEventListener("change", () => {
+        // keep it snappy: only auto-generate if we already have output
+        if ($("tab-view").innerHTML.trim()) generateNow();
+      });
+    });
+
+    // Initial render
+    collectScales();
+    generateNow();
+  </script>
+</body>
+</html>
