@@ -1,0 +1,1304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gradient Layers Prototype</title>
+
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="card-h">
+          <h2>Gradient Layers Prototype</h2>
+          <div class="row">
+            <span class="badge" id="status">Idle</span>
+            <button class="btn" id="reset">Reset</button>
+            <button class="btn primary" id="copyAll">Copy CSS</button>
+          </div>
+        </div>
+        <div class="card-b">
+          <div class="stack" id="app"></div>
+          <div class="sep"></div>
+          <div class="hint">
+            Tip: drag 1D stops on the strip; drag 2D points and radius handles on the canvas.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { $, $$, ready, el, debounce, injectCSS, store } from "./helpers.js";
+
+      const setCSS = injectCSS("gradient-layers-proto-style");
+
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const uid = (p = "id") => `${p}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+
+      const hexToRgb = (hex) => {
+        const h = String(hex || "").trim();
+        const m = h.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        if (!m) return { r: 255, g: 0, b: 255 };
+        let s = m[1];
+        if (s.length === 3) s = s.split("").map((c) => c + c).join("");
+        const n = parseInt(s, 16);
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+      };
+
+      const rgba = (hex, a = 1) => {
+        const { r, g, b } = hexToRgb(hex);
+        const aa = clamp(Number(a), 0, 1);
+        return `rgba(${r}, ${g}, ${b}, ${aa})`;
+      };
+
+      const fmtPct = (n) => `${Math.round(n)}%`;
+
+      const randomColor = () => {
+        const palette = [
+          "#2563eb",
+          "#8b5cf6",
+          "#ec4899",
+          "#f97316",
+          "#22c55e",
+          "#06b6d4",
+          "#f59e0b",
+        ];
+        return palette[Math.floor(Math.random() * palette.length)];
+      };
+
+      const DEFAULT = {
+        v: 1,
+        oneD: {
+          base: "#0b1020",
+          selectedLayerId: null,
+          selectedStopId: null,
+          layers: [
+            {
+              id: "l1",
+              name: "Layer 1",
+              enabled: true,
+              angle: 90,
+              opacity: 1,
+              blend: "normal",
+              stops: [
+                { id: "s1", pos: 10, color: "#22c55e" },
+                { id: "s2", pos: 55, color: "#2563eb" },
+                { id: "s3", pos: 92, color: "#ec4899" },
+              ],
+            },
+            {
+              id: "l2",
+              name: "Layer 2",
+              enabled: true,
+              angle: 0,
+              opacity: 0.65,
+              blend: "screen",
+              stops: [
+                { id: "s4", pos: 0, color: "#f97316" },
+                { id: "s5", pos: 100, color: "#8b5cf6" },
+              ],
+            },
+          ],
+        },
+        twoD: {
+          base: "#0b1020",
+          blend: "screen",
+          selectedPointId: null,
+          points: [
+            {
+              id: "p1",
+              name: "Point 1",
+              enabled: true,
+              x: 0.25,
+              y: 0.35,
+              outerR: 180,
+              innerR: 40,
+              alpha: 0.95,
+              color: "#2563eb",
+            },
+            {
+              id: "p2",
+              name: "Point 2",
+              enabled: true,
+              x: 0.7,
+              y: 0.55,
+              outerR: 220,
+              innerR: 70,
+              alpha: 0.9,
+              color: "#ec4899",
+            },
+            {
+              id: "p3",
+              name: "Point 3",
+              enabled: true,
+              x: 0.5,
+              y: 0.2,
+              outerR: 160,
+              innerR: 55,
+              alpha: 0.85,
+              color: "#22c55e",
+            },
+          ],
+        },
+      };
+
+      const STORAGE_KEY = "gradientLayersProto:v1";
+
+      const loadState = () => {
+        const saved = store.get(STORAGE_KEY, null);
+        if (!saved || saved.v !== 1) return structuredClone(DEFAULT);
+        return saved;
+      };
+
+      const saveState = debounce(180, (state) => store.set(STORAGE_KEY, state));
+
+      const blendModes = [
+        "normal",
+        "multiply",
+        "screen",
+        "overlay",
+        "darken",
+        "lighten",
+        "color-dodge",
+        "color-burn",
+        "hard-light",
+        "soft-light",
+        "difference",
+        "exclusion",
+        "hue",
+        "saturation",
+        "color",
+        "luminosity",
+      ];
+
+      const cssFor1D = (state) => {
+        const layers = (state.oneD.layers || []).filter((l) => l.enabled);
+        const images = [];
+        const blends = [];
+        for (const layer of layers) {
+          const stops = [...(layer.stops || [])]
+            .sort((a, b) => a.pos - b.pos)
+            .map((s) => `${rgba(s.color, layer.opacity)} ${fmtPct(s.pos)}`)
+            .join(", ");
+          images.push(`linear-gradient(${Number(layer.angle) || 0}deg, ${stops})`);
+          blends.push(layer.blend || "normal");
+        }
+        return {
+          base: state.oneD.base,
+          backgroundImage: images.length ? images.join(", ") : "none",
+          backgroundBlendMode: blends.length ? blends.join(", ") : "normal",
+        };
+      };
+
+      const cssFor2D = (state) => {
+        const pts = (state.twoD.points || []).filter((p) => p.enabled);
+        const images = [];
+        for (const p of pts) {
+          const x = clamp(p.x ?? 0.5, 0, 1) * 100;
+          const y = clamp(p.y ?? 0.5, 0, 1) * 100;
+          const innerR = clamp(Number(p.innerR) || 0, 0, 5000);
+          const outerR = clamp(Number(p.outerR) || 1, 1, 5000);
+          const a = clamp(Number(p.alpha) || 0, 0, 1);
+          const c = rgba(p.color, a);
+          images.push(
+            `radial-gradient(circle at ${x.toFixed(1)}% ${y.toFixed(1)}%, ${c} 0px, ${c} ${innerR.toFixed(
+              0,
+            )}px, rgba(0,0,0,0) ${outerR.toFixed(0)}px)`,
+          );
+        }
+        return {
+          base: state.twoD.base,
+          backgroundImage: images.length ? images.join(", ") : "none",
+          backgroundBlendMode: state.twoD.blend || "screen",
+        };
+      };
+
+      const cssBlockAll = (state) => {
+        const one = cssFor1D(state);
+        const two = cssFor2D(state);
+        return [
+          `/* 1D preview */`,
+          `.preview-1d {`,
+          `  background-color: ${one.base};`,
+          `  background-image: ${one.backgroundImage};`,
+          `  background-blend-mode: ${one.backgroundBlendMode};`,
+          `}`,
+          ``,
+          `/* 2D preview */`,
+          `.preview-2d {`,
+          `  background-color: ${two.base};`,
+          `  background-image: ${two.backgroundImage};`,
+          `  background-blend-mode: ${two.backgroundBlendMode};`,
+          `}`,
+        ].join("\n");
+      };
+
+      const copyText = async (text) => {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      const field = (label, control) =>
+        el("div", { class: "field" }, [el("label", {}, label), control]);
+
+      const select = (value, options, onChange) =>
+        el(
+          "select",
+          {
+            value,
+            onChange: (e) => onChange(e.target.value),
+          },
+          options.map((o) => el("option", { value: o }, o)),
+        );
+
+      const num = (value, { min, max, step } = {}, onInput) =>
+        el("input", {
+          type: "number",
+          value: String(value ?? ""),
+          min: min ?? undefined,
+          max: max ?? undefined,
+          step: step ?? undefined,
+          onInput: (e) => onInput(Number(e.target.value)),
+        });
+
+      const rng = (value, { min, max, step } = {}, onInput) =>
+        el("input", {
+          type: "range",
+          value: String(value ?? 0),
+          min,
+          max,
+          step: step ?? 1,
+          onInput: (e) => onInput(Number(e.target.value)),
+        });
+
+      const color = (value, onInput) =>
+        el("input", {
+          type: "color",
+          value: String(value || "#ff00ff"),
+          onInput: (e) => onInput(e.target.value),
+        });
+
+      const codebox = (text) => el("pre", { class: "codebox" }, text);
+
+      const stopPropagation = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      const pointerDrag = (target, handlers) => {
+        // handlers: { onStart(e), onMove(e), onEnd(e) }
+        const onDown = (e) => {
+          if (e.button != null && e.button !== 0) return;
+          target.setPointerCapture?.(e.pointerId);
+          handlers.onStart?.(e);
+          const onMove = (ev) => handlers.onMove?.(ev);
+          const onUp = (ev) => {
+            target.releasePointerCapture?.(ev.pointerId);
+            handlers.onEnd?.(ev);
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            window.removeEventListener("pointercancel", onUp);
+          };
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+          window.addEventListener("pointercancel", onUp);
+        };
+        target.addEventListener("pointerdown", onDown);
+        return () => target.removeEventListener("pointerdown", onDown);
+      };
+
+      ready(() => {
+        setCSS(`
+          .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 12px;
+            align-items: start;
+          }
+          @media (max-width: 980px) {
+            .grid2 { grid-template-columns: 1fr; }
+          }
+
+          .preview {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            background: var(--surface-2);
+            position: relative;
+          }
+
+          .preview-1d {
+            height: 160px;
+          }
+
+          .preview-2d {
+            aspect-ratio: 16 / 9;
+            min-height: 320px;
+          }
+
+          .strip {
+            height: 46px;
+            border-top: 1px solid rgba(255,255,255,0.10);
+            background: rgba(0,0,0,0.18);
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+          }
+
+          .stop {
+            position: absolute;
+            bottom: 7px;
+            width: 14px;
+            height: 28px;
+            border-radius: 999px;
+            transform: translateX(-50%);
+            border: 1px solid rgba(255,255,255,0.55);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+            cursor: grab;
+          }
+          .stop:active { cursor: grabbing; }
+          .stop.sel {
+            outline: 3px solid rgba(255,255,255,0.40);
+          }
+
+          .layerRow {
+            display: grid;
+            grid-template-columns: 20px 1fr auto;
+            gap: 10px;
+            align-items: center;
+            padding: 8px;
+            border: 1px solid var(--border2);
+            border-radius: 12px;
+            background: linear-gradient(180deg, var(--panel), var(--surface-4));
+          }
+
+          .mini {
+            width: 46px;
+            height: 28px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+          }
+
+          .canvas {
+            position: absolute;
+            inset: 0;
+            touch-action: none;
+          }
+
+          .pt {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border-radius: 999px;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(255,255,255,0.65);
+            box-shadow: 0 10px 22px rgba(0,0,0,0.24);
+            cursor: grab;
+          }
+          .pt:active { cursor: grabbing; }
+          .pt.sel { outline: 3px solid rgba(255,255,255,0.35); }
+
+          .handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.95);
+            border: 1px solid rgba(0,0,0,0.35);
+            cursor: ew-resize;
+          }
+
+          .ring {
+            position: absolute;
+            border: 1px dashed rgba(255,255,255,0.35);
+            border-radius: 999px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+          }
+
+          .rowBetween { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+          .codebox { font-size: 12px; line-height: 1.45; }
+        `);
+
+        const app = $("#app");
+        const status = $("#status");
+        const btnReset = $("#reset");
+        const btnCopyAll = $("#copyAll");
+
+        let state = loadState();
+
+        const setStatus = (text, saved = false) => {
+          status.textContent = text;
+          status.classList.toggle("saved", !!saved);
+        };
+
+        const markDirty = () => {
+          setStatus("Editing…", false);
+          saveState(state);
+          window.clearTimeout(markDirty._t);
+          markDirty._t = window.setTimeout(() => setStatus("Saved", true), 220);
+        };
+
+        const ensureSelections = () => {
+          if (!state.oneD.selectedLayerId) state.oneD.selectedLayerId = state.oneD.layers?.[0]?.id ?? null;
+          const layer = state.oneD.layers.find((l) => l.id === state.oneD.selectedLayerId) || state.oneD.layers?.[0];
+          if (layer && !state.oneD.selectedStopId) state.oneD.selectedStopId = layer.stops?.[0]?.id ?? null;
+
+          if (!state.twoD.selectedPointId) state.twoD.selectedPointId = state.twoD.points?.[0]?.id ?? null;
+        };
+
+        const render = () => {
+          ensureSelections();
+          app.innerHTML = "";
+
+          const oneD = build1D();
+          const twoD = build2D();
+          const cssOut = buildCSSOut();
+
+          app.append(oneD, twoD, cssOut);
+
+          // After DOM insertion, refresh generated CSS + handle positioning.
+          build1D.updateCSSBoxes?.();
+          requestAnimationFrame(() => {
+            build1D.renderStops?.();
+            build2D.renderPoints?.();
+          });
+        };
+
+        const applyPreviews = (preview1d, preview2d) => {
+          const c1 = cssFor1D(state);
+          preview1d.style.backgroundColor = c1.base;
+          preview1d.style.backgroundImage = c1.backgroundImage;
+          preview1d.style.backgroundBlendMode = c1.backgroundBlendMode;
+
+          const c2 = cssFor2D(state);
+          preview2d.style.backgroundColor = c2.base;
+          preview2d.style.backgroundImage = c2.backgroundImage;
+          preview2d.style.backgroundBlendMode = c2.backgroundBlendMode;
+        };
+
+        const build1D = () => {
+          const preview = el("div", { class: "preview preview-1d" });
+          const strip = el("div", { class: "strip", title: "Drag stops. Double-click to add a stop." });
+
+          const layersPanel = el("div", { class: "stack" });
+
+          const header = el("div", { class: "rowBetween" }, [
+            el("div", { class: "stack", style: { gap: "2px" } }, [
+              el("div", { class: "section-title" }, "1D Gradient (linear layers)"),
+              el(
+                "div",
+                { class: "muted" },
+                "Each layer is a linear-gradient; drag stops on the strip.",
+              ),
+            ]),
+            el("div", { class: "row" }, [
+              el(
+                "button",
+                {
+                  class: "btn small",
+                  onClick: () => {
+                    const n = (state.oneD.layers?.length ?? 0) + 1;
+                    const id = uid("layer");
+                    state.oneD.layers.push({
+                      id,
+                      name: `Layer ${n}`,
+                      enabled: true,
+                      angle: 90,
+                      opacity: 1,
+                      blend: "normal",
+                      stops: [
+                        { id: uid("stop"), pos: 0, color: randomColor() },
+                        { id: uid("stop"), pos: 100, color: randomColor() },
+                      ],
+                    });
+                    state.oneD.selectedLayerId = id;
+                    state.oneD.selectedStopId = state.oneD.layers.at(-1).stops[0].id;
+                    markDirty();
+                    render();
+                  },
+                },
+                "+ layer",
+              ),
+            ]),
+          ]);
+
+          const layersList = el("div", { class: "stack" });
+
+          for (const layer of state.oneD.layers) {
+            const mini = el("div", { class: "mini" });
+            const tmp = {
+              oneD: {
+                base: "#000000",
+                layers: [
+                  {
+                    ...layer,
+                    opacity: 1,
+                    enabled: true,
+                    blend: "normal",
+                  },
+                ],
+              },
+            };
+            const cc = cssFor1D(tmp);
+            mini.style.backgroundImage = cc.backgroundImage;
+
+            const chk = el("input", {
+              type: "checkbox",
+              checked: layer.enabled,
+              onChange: (e) => {
+                layer.enabled = e.target.checked;
+                markDirty();
+                render();
+              },
+            });
+
+            const nameBtn = el(
+              "button",
+              {
+                class: "btn small",
+                style: {
+                  width: "100%",
+                  textAlign: "left",
+                  borderColor:
+                    state.oneD.selectedLayerId === layer.id ? "rgba(37,99,235,0.35)" : "var(--border)",
+                },
+                onClick: () => {
+                  state.oneD.selectedLayerId = layer.id;
+                  state.oneD.selectedStopId = layer.stops?.[0]?.id ?? null;
+                  render();
+                },
+              },
+              layer.name,
+            );
+
+            const del = el(
+              "button",
+              {
+                class: "btn danger small",
+                title: "Delete layer",
+                onClick: () => {
+                  if (state.oneD.layers.length <= 1) return;
+                  state.oneD.layers = state.oneD.layers.filter((l) => l.id !== layer.id);
+                  if (state.oneD.selectedLayerId === layer.id) {
+                    state.oneD.selectedLayerId = state.oneD.layers?.[0]?.id ?? null;
+                    state.oneD.selectedStopId =
+                      state.oneD.layers?.[0]?.stops?.[0]?.id ?? null;
+                  }
+                  markDirty();
+                  render();
+                },
+              },
+              "Del",
+            );
+
+            layersList.append(el("div", { class: "layerRow" }, [chk, el("div", { class: "row", style: { gap: "8px" } }, [mini, nameBtn]), del]));
+          }
+
+          const controls = el("div", { class: "stack" });
+
+          const activeLayer =
+            state.oneD.layers.find((l) => l.id === state.oneD.selectedLayerId) ||
+            state.oneD.layers[0];
+
+          const activeStop =
+            activeLayer?.stops?.find((s) => s.id === state.oneD.selectedStopId) ||
+            activeLayer?.stops?.[0] ||
+            null;
+
+          controls.append(
+            field(
+              "Base color",
+              el("div", { class: "row" }, [
+                color(state.oneD.base, (v) => {
+                  state.oneD.base = v;
+                  markDirty();
+                  applyPreviews(preview, preview2dShadow);
+                  updateCSSBoxes();
+                }),
+                el("span", { class: "muted" }, state.oneD.base),
+              ]),
+            ),
+          );
+
+          if (activeLayer) {
+            controls.append(
+              el("div", { class: "sep" }),
+              el("div", { class: "section-title" }, "Selected layer"),
+              field(
+                "Angle",
+                el("div", { class: "row" }, [
+                  rng(activeLayer.angle, { min: 0, max: 360, step: 1 }, (v) => {
+                    activeLayer.angle = v;
+                    markDirty();
+                    applyPreviews(preview, preview2dShadow);
+                    updateCSSBoxes();
+                  }),
+                  el("span", { class: "pill" }, `${activeLayer.angle}°`),
+                ]),
+              ),
+              field(
+                "Opacity",
+                el("div", { class: "row" }, [
+                  rng(Math.round(activeLayer.opacity * 100), { min: 0, max: 100, step: 1 }, (v) => {
+                    activeLayer.opacity = v / 100;
+                    markDirty();
+                    applyPreviews(preview, preview2dShadow);
+                    updateCSSBoxes();
+                    renderStops();
+                  }),
+                  el("span", { class: "pill" }, `${Math.round(activeLayer.opacity * 100)}%`),
+                ]),
+              ),
+              field(
+                "Blend mode",
+                select(activeLayer.blend, blendModes, (v) => {
+                  activeLayer.blend = v;
+                  markDirty();
+                  applyPreviews(preview, preview2dShadow);
+                  updateCSSBoxes();
+                }),
+              ),
+              el("div", { class: "row" }, [
+                el(
+                  "button",
+                  {
+                    class: "btn small",
+                    onClick: () => {
+                      const id = uid("stop");
+                      activeLayer.stops.push({
+                        id,
+                        pos: 50,
+                        color: randomColor(),
+                      });
+                      state.oneD.selectedStopId = id;
+                      markDirty();
+                      render();
+                    },
+                  },
+                  "+ stop",
+                ),
+                el(
+                  "button",
+                  {
+                    class: "btn danger small",
+                    disabled: !activeStop || activeLayer.stops.length <= 2,
+                    onClick: () => {
+                      if (!activeStop) return;
+                      if (activeLayer.stops.length <= 2) return;
+                      activeLayer.stops = activeLayer.stops.filter((s) => s.id !== activeStop.id);
+                      state.oneD.selectedStopId = activeLayer.stops?.[0]?.id ?? null;
+                      markDirty();
+                      render();
+                    },
+                  },
+                  "Remove stop",
+                ),
+              ]),
+            );
+
+            if (activeStop) {
+              controls.append(
+                el("div", { class: "sep" }),
+                el("div", { class: "section-title" }, "Selected stop"),
+                field(
+                  "Color",
+                  el("div", { class: "row" }, [
+                    color(activeStop.color, (v) => {
+                      activeStop.color = v;
+                      markDirty();
+                      applyPreviews(preview, preview2dShadow);
+                      updateCSSBoxes();
+                      renderStops();
+                    }),
+                    el("span", { class: "muted" }, activeStop.color),
+                  ]),
+                ),
+                field(
+                  "Position",
+                  el("div", { class: "row" }, [
+                    rng(activeStop.pos, { min: 0, max: 100, step: 1 }, (v) => {
+                      activeStop.pos = clamp(v, 0, 100);
+                      markDirty();
+                      applyPreviews(preview, preview2dShadow);
+                      updateCSSBoxes();
+                      renderStops();
+                    }),
+                    el("span", { class: "pill" }, fmtPct(activeStop.pos)),
+                  ]),
+                ),
+              );
+            }
+          }
+
+          const editor = el("div", { class: "grid2" }, [
+            el("div", { class: "stack" }, [preview, layersList]),
+            controls,
+          ]);
+
+          preview.append(strip);
+
+          // Shadow preview node for 2D updates inside build1D()
+          // (set later after build2D constructs it)
+          let preview2dShadow = document.createElement("div");
+
+          // stop handles
+          const renderStops = () => {
+            strip.innerHTML = "";
+            const rect = strip.getBoundingClientRect();
+            const w = rect.width || 1;
+
+            const layer =
+              state.oneD.layers.find((l) => l.id === state.oneD.selectedLayerId) ||
+              state.oneD.layers[0];
+            if (!layer) return;
+
+            const sorted = [...layer.stops].sort((a, b) => a.pos - b.pos);
+
+            for (const s of sorted) {
+              const x = (clamp(s.pos, 0, 100) / 100) * w;
+              const node = el("div", {
+                class: `stop ${state.oneD.selectedStopId === s.id ? "sel" : ""}`,
+                style: {
+                  left: `${(x / w) * 100}%`,
+                  background: rgba(s.color, 1),
+                },
+                title: `${s.color} @ ${fmtPct(s.pos)}`,
+              });
+
+              node.addEventListener("click", (e) => {
+                e.stopPropagation();
+                state.oneD.selectedStopId = s.id;
+                render();
+              });
+
+              pointerDrag(node, {
+                onStart: (e) => {
+                  stopPropagation(e);
+                  state.oneD.selectedStopId = s.id;
+                  setStatus("Dragging…", false);
+                },
+                onMove: (e) => {
+                  const r = strip.getBoundingClientRect();
+                  const t = clamp((e.clientX - r.left) / (r.width || 1), 0, 1);
+                  s.pos = Math.round(t * 100);
+                  applyPreviews(preview, preview2dShadow);
+                  updateCSSBoxes();
+                  renderStops();
+                },
+                onEnd: () => {
+                  markDirty();
+                  render();
+                },
+              });
+
+              strip.append(node);
+            }
+          };
+
+          strip.addEventListener("dblclick", (e) => {
+            const layer =
+              state.oneD.layers.find((l) => l.id === state.oneD.selectedLayerId) ||
+              state.oneD.layers[0];
+            if (!layer) return;
+            const r = strip.getBoundingClientRect();
+            const t = clamp((e.clientX - r.left) / (r.width || 1), 0, 1);
+            const id = uid("stop");
+            layer.stops.push({ id, pos: Math.round(t * 100), color: randomColor() });
+            state.oneD.selectedStopId = id;
+            markDirty();
+            render();
+          });
+
+          // Keep closures updated
+          const updatePreview2dShadow = (node) => {
+            preview2dShadow = node;
+          };
+
+          const updateCSSBoxes = () => {
+            const out1 = $("#css1d");
+            const out2 = $("#css2d");
+            const outAll = $("#cssAll");
+            if (out1) out1.textContent = cssBlock1D();
+            if (out2) out2.textContent = cssBlock2D();
+            if (outAll) outAll.textContent = cssBlockAll(state);
+          };
+
+          const cssBlock1D = () => {
+            const c = cssFor1D(state);
+            return [
+              `.preview-1d {`,
+              `  background-color: ${c.base};`,
+              `  background-image: ${c.backgroundImage};`,
+              `  background-blend-mode: ${c.backgroundBlendMode};`,
+              `}`,
+            ].join("\n");
+          };
+
+          const cssBlock2D = () => {
+            const c = cssFor2D(state);
+            return [
+              `.preview-2d {`,
+              `  background-color: ${c.base};`,
+              `  background-image: ${c.backgroundImage};`,
+              `  background-blend-mode: ${c.backgroundBlendMode};`,
+              `}`,
+            ].join("\n");
+          };
+
+          // Expose for other builders (avoids duplicating code)
+          build1D.updatePreview2dShadow = updatePreview2dShadow;
+          build1D.renderStops = renderStops;
+          build1D.updateCSSBoxes = updateCSSBoxes;
+          build1D.applyPreviews = () => applyPreviews(preview, preview2dShadow);
+
+          // Initial paint
+          applyPreviews(preview, preview2dShadow);
+          requestAnimationFrame(renderStops);
+
+          return editor;
+        };
+
+        const build2D = () => {
+          const preview = el("div", { class: "preview preview-2d" });
+          const canvas = el("div", { class: "canvas", title: "Drag points; drag small white handles to change inner/outer radius." });
+          preview.append(canvas);
+
+          const header = el("div", { class: "rowBetween" }, [
+            el("div", { class: "stack", style: { gap: "2px" } }, [
+              el("div", { class: "section-title" }, "2D Gradient (radial points)"),
+              el(
+                "div",
+                { class: "muted" },
+                "Each point becomes a radial-gradient layer; drag center + inner/outer handles.",
+              ),
+            ]),
+            el("div", { class: "row" }, [
+              el(
+                "button",
+                {
+                  class: "btn small",
+                  onClick: () => {
+                    const n = (state.twoD.points?.length ?? 0) + 1;
+                    const id = uid("pt");
+                    state.twoD.points.push({
+                      id,
+                      name: `Point ${n}`,
+                      enabled: true,
+                      x: 0.5,
+                      y: 0.5,
+                      outerR: 200,
+                      innerR: 60,
+                      alpha: 0.9,
+                      color: randomColor(),
+                    });
+                    state.twoD.selectedPointId = id;
+                    markDirty();
+                    render();
+                  },
+                },
+                "+ point",
+              ),
+            ]),
+          ]);
+
+          const controls = el("div", { class: "stack" });
+          const list = el("div", { class: "stack" });
+
+          const activePoint =
+            state.twoD.points.find((p) => p.id === state.twoD.selectedPointId) ||
+            state.twoD.points[0] ||
+            null;
+
+          controls.append(
+            field(
+              "Base color",
+              el("div", { class: "row" }, [
+                color(state.twoD.base, (v) => {
+                  state.twoD.base = v;
+                  markDirty();
+                  build1D.applyPreviews?.();
+                  applyPreviews(preview, preview);
+                  build1D.updateCSSBoxes?.();
+                }),
+                el("span", { class: "muted" }, state.twoD.base),
+              ]),
+            ),
+            field(
+              "Blend mode",
+              select(state.twoD.blend, blendModes, (v) => {
+                state.twoD.blend = v;
+                markDirty();
+                build1D.applyPreviews?.();
+                applyPreviews(preview, preview);
+                build1D.updateCSSBoxes?.();
+              }),
+            ),
+          );
+
+          for (const p of state.twoD.points) {
+            const chk = el("input", {
+              type: "checkbox",
+              checked: p.enabled,
+              onChange: (e) => {
+                p.enabled = e.target.checked;
+                markDirty();
+                render();
+              },
+            });
+
+            const swatch = el("div", {
+              class: "mini",
+              style: {
+                background: `radial-gradient(circle at 30% 30%, ${rgba(p.color, p.alpha)} 0%, rgba(0,0,0,0) 70%)`,
+              },
+            });
+
+            const nameBtn = el(
+              "button",
+              {
+                class: "btn small",
+                style: {
+                  width: "100%",
+                  textAlign: "left",
+                  borderColor:
+                    state.twoD.selectedPointId === p.id ? "rgba(37,99,235,0.35)" : "var(--border)",
+                },
+                onClick: () => {
+                  state.twoD.selectedPointId = p.id;
+                  render();
+                },
+              },
+              p.name,
+            );
+
+            const del = el(
+              "button",
+              {
+                class: "btn danger small",
+                title: "Delete point",
+                onClick: () => {
+                  if (state.twoD.points.length <= 1) return;
+                  state.twoD.points = state.twoD.points.filter((q) => q.id !== p.id);
+                  if (state.twoD.selectedPointId === p.id)
+                    state.twoD.selectedPointId = state.twoD.points?.[0]?.id ?? null;
+                  markDirty();
+                  render();
+                },
+              },
+              "Del",
+            );
+
+            list.append(el("div", { class: "layerRow" }, [chk, el("div", { class: "row", style: { gap: "8px" } }, [swatch, nameBtn]), del]));
+          }
+
+          if (activePoint) {
+            controls.append(
+              el("div", { class: "sep" }),
+              el("div", { class: "section-title" }, "Selected point"),
+              field(
+                "Color",
+                el("div", { class: "row" }, [
+                  color(activePoint.color, (v) => {
+                    activePoint.color = v;
+                    markDirty();
+                    build1D.applyPreviews?.();
+                    applyPreviews(preview, preview);
+                    build1D.updateCSSBoxes?.();
+                    renderPoints();
+                  }),
+                  el("span", { class: "muted" }, activePoint.color),
+                ]),
+              ),
+              field(
+                "Alpha",
+                el("div", { class: "row" }, [
+                  rng(Math.round(activePoint.alpha * 100), { min: 0, max: 100, step: 1 }, (v) => {
+                    activePoint.alpha = v / 100;
+                    markDirty();
+                    build1D.applyPreviews?.();
+                    applyPreviews(preview, preview);
+                    build1D.updateCSSBoxes?.();
+                    renderPoints();
+                  }),
+                  el("span", { class: "pill" }, `${Math.round(activePoint.alpha * 100)}%`),
+                ]),
+              ),
+              field(
+                "Inner radius (px)",
+                el("div", { class: "row" }, [
+                  rng(activePoint.innerR, { min: 0, max: 600, step: 1 }, (v) => {
+                    activePoint.innerR = clamp(v, 0, activePoint.outerR - 1);
+                    markDirty();
+                    build1D.applyPreviews?.();
+                    applyPreviews(preview, preview);
+                    build1D.updateCSSBoxes?.();
+                    renderPoints();
+                  }),
+                  el("span", { class: "pill" }, `${Math.round(activePoint.innerR)}px`),
+                ]),
+              ),
+              field(
+                "Outer radius (px)",
+                el("div", { class: "row" }, [
+                  rng(activePoint.outerR, { min: 1, max: 900, step: 1 }, (v) => {
+                    activePoint.outerR = clamp(v, activePoint.innerR + 1, 2000);
+                    markDirty();
+                    build1D.applyPreviews?.();
+                    applyPreviews(preview, preview);
+                    build1D.updateCSSBoxes?.();
+                    renderPoints();
+                  }),
+                  el("span", { class: "pill" }, `${Math.round(activePoint.outerR)}px`),
+                ]),
+              ),
+            );
+          }
+
+          const editor = el("div", { class: "grid2 mt-18" }, [
+            el("div", { class: "stack" }, [preview, header, list]),
+            controls,
+          ]);
+
+          // Provide preview to 1D builder so it can update both previews live.
+          build1D.updatePreview2dShadow?.(preview);
+
+          const renderPoints = () => {
+            canvas.innerHTML = "";
+
+            for (const p of state.twoD.points) {
+              const x = clamp(p.x ?? 0.5, 0, 1);
+              const y = clamp(p.y ?? 0.5, 0, 1);
+
+              const cx = `${(x * 100).toFixed(3)}%`;
+              const cy = `${(y * 100).toFixed(3)}%`;
+
+              const ringOuter = el("div", {
+                class: "ring",
+                style: {
+                  left: cx,
+                  top: cy,
+                  width: `${(p.outerR * 2).toFixed(0)}px`,
+                  height: `${(p.outerR * 2).toFixed(0)}px`,
+                },
+              });
+
+              const ringInner = el("div", {
+                class: "ring",
+                style: {
+                  left: cx,
+                  top: cy,
+                  width: `${(p.innerR * 2).toFixed(0)}px`,
+                  height: `${(p.innerR * 2).toFixed(0)}px`,
+                  borderStyle: "solid",
+                  borderColor: "rgba(255,255,255,0.22)",
+                },
+              });
+
+              const node = el("div", {
+                class: `pt ${state.twoD.selectedPointId === p.id ? "sel" : ""}`,
+                style: {
+                  left: cx,
+                  top: cy,
+                  background: rgba(p.color, 1),
+                  opacity: p.enabled ? "1" : "0.35",
+                },
+                title: `${p.name} (${Math.round(x * 100)}%, ${Math.round(y * 100)}%)`,
+              });
+
+              node.addEventListener("click", (e) => {
+                e.stopPropagation();
+                state.twoD.selectedPointId = p.id;
+                render();
+              });
+
+              // Outer radius handle to the right
+              const hOuter = el("div", {
+                class: "handle",
+                style: {
+                  left: `calc(${cx} + ${p.outerR.toFixed(0)}px)`,
+                  top: cy,
+                  opacity: p.enabled ? "1" : "0.35",
+                },
+                title: "Drag to change outer radius",
+              });
+
+              const hInner = el("div", {
+                class: "handle",
+                style: {
+                  left: `calc(${cx} + ${p.innerR.toFixed(0)}px)`,
+                  top: cy,
+                  background: "rgba(255,255,255,0.75)",
+                  opacity: p.enabled ? "1" : "0.35",
+                },
+                title: "Drag to change inner radius",
+              });
+
+              pointerDrag(node, {
+                onStart: (e) => {
+                  stopPropagation(e);
+                  state.twoD.selectedPointId = p.id;
+                  setStatus("Dragging…", false);
+                },
+                onMove: (e) => {
+                  const r = canvas.getBoundingClientRect();
+                  const nx = clamp((e.clientX - r.left) / (r.width || 1), 0, 1);
+                  const ny = clamp((e.clientY - r.top) / (r.height || 1), 0, 1);
+                  p.x = nx;
+                  p.y = ny;
+                  build1D.applyPreviews?.();
+                  applyPreviews(preview, preview);
+                  build1D.updateCSSBoxes?.();
+                  renderPoints();
+                },
+                onEnd: () => {
+                  markDirty();
+                  render();
+                },
+              });
+
+              const dragRadius = (which) =>
+                pointerDrag(which === "outer" ? hOuter : hInner, {
+                  onStart: (e) => {
+                    stopPropagation(e);
+                    state.twoD.selectedPointId = p.id;
+                    setStatus("Dragging…", false);
+                  },
+                  onMove: (e) => {
+                    const r = canvas.getBoundingClientRect();
+                    const cxPx = (p.x ?? 0.5) * (r.width || 1);
+                    const cyPx = (p.y ?? 0.5) * (r.height || 1);
+                    const dx = e.clientX - r.left - cxPx;
+                    const dy = e.clientY - r.top - cyPx;
+                    // Use distance for a natural feel
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (which === "outer") {
+                      p.outerR = clamp(dist, p.innerR + 1, 2000);
+                    } else {
+                      p.innerR = clamp(dist, 0, p.outerR - 1);
+                    }
+                    build1D.applyPreviews?.();
+                    applyPreviews(preview, preview);
+                    build1D.updateCSSBoxes?.();
+                    renderPoints();
+                  },
+                  onEnd: () => {
+                    markDirty();
+                    render();
+                  },
+                });
+
+              dragRadius("outer");
+              dragRadius("inner");
+
+              canvas.append(ringOuter, ringInner, node, hOuter, hInner);
+            }
+          };
+
+          canvas.addEventListener("click", () => {
+            // click empty space -> deselect (keep selected if desired; for now do nothing)
+          });
+
+          // Initial paint
+          applyPreviews(preview, preview);
+          requestAnimationFrame(renderPoints);
+
+          build2D.renderPoints = renderPoints;
+
+          return editor;
+        };
+
+        const buildCSSOut = () => {
+          const one = el("div", { class: "card mt-18" }, [
+            el("div", { class: "card-h" }, [
+              el("h2", {}, "CSS export"),
+              el("div", { class: "row" }, [
+                el(
+                  "button",
+                  {
+                    class: "btn small",
+                    onClick: async () => {
+                      const ok = await copyText($("#css1d")?.textContent || "");
+                      setStatus(ok ? "Copied 1D" : "Copy failed", ok);
+                    },
+                  },
+                  "Copy 1D",
+                ),
+                el(
+                  "button",
+                  {
+                    class: "btn small",
+                    onClick: async () => {
+                      const ok = await copyText($("#css2d")?.textContent || "");
+                      setStatus(ok ? "Copied 2D" : "Copy failed", ok);
+                    },
+                  },
+                  "Copy 2D",
+                ),
+                el(
+                  "button",
+                  {
+                    class: "btn primary small",
+                    onClick: async () => {
+                      const ok = await copyText($("#cssAll")?.textContent || "");
+                      setStatus(ok ? "Copied all" : "Copy failed", ok);
+                    },
+                  },
+                  "Copy all",
+                ),
+              ]),
+            ]),
+            el("div", { class: "card-b stack" }, [
+              el("div", { class: "muted" }, "These snippets are exactly what drives the previews."),
+              el("div", { class: "grid2" }, [
+                el("div", { class: "stack" }, [
+                  el("div", { class: "section-title" }, "1D"),
+                  el("pre", { class: "codebox", id: "css1d" }, ""),
+                ]),
+                el("div", { class: "stack" }, [
+                  el("div", { class: "section-title" }, "2D"),
+                  el("pre", { class: "codebox", id: "css2d" }, ""),
+                ]),
+              ]),
+              el("div", { class: "section-title" }, "All"),
+              el("pre", { class: "codebox", id: "cssAll" }, ""),
+            ]),
+          ]);
+
+          build1D.updateCSSBoxes?.();
+          return one;
+        };
+
+        // First render
+        setStatus("Ready", true);
+        render();
+        build1D.updateCSSBoxes?.();
+
+        // Top buttons
+        btnReset.addEventListener("click", () => {
+          state = structuredClone(DEFAULT);
+          store.del(STORAGE_KEY);
+          setStatus("Reset", true);
+          render();
+        });
+
+        btnCopyAll.addEventListener("click", async () => {
+          const ok = await copyText(cssBlockAll(state));
+          setStatus(ok ? "Copied all" : "Copy failed", ok);
+        });
+
+        // Make update helpers globally reachable by closures
+        const updateCSSBoxes = () => build1D.updateCSSBoxes?.();
+        window.updateCSSBoxes = updateCSSBoxes;
+      });
+    </script>
+  </body>
+</html>
