@@ -38,14 +38,7 @@ Minimal template (serve over HTTP so module imports work):
     </div>
 
     <script type="module">
-      import {
-        $,
-        ready,
-        el,
-        debounce,
-        injectCSS,
-        store,
-      } from "./helpers.js";
+      import { $, ready, el, debounce, injectCSS, store } from "./helpers.js";
 
       const setCSS = injectCSS();
 
@@ -80,11 +73,6 @@ Minimal template (serve over HTTP so module imports work):
   </body>
 </html>
 ```
-
-Run a server from the repo root:
-
-- `python3 -m http.server 8000`
-- then open `http://localhost:8000/your-demo.html`
 
 ## JS helpers (`./helpers.js`)
 
