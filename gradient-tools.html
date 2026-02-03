@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gradient Helper (V1)</title>
+
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="card-h">
+          <h2>Gradient Helper</h2>
+          <div class="row">
+            <span class="badge" id="status">Idle</span>
+            <button class="btn primary" id="saveNow">Save</button>
+            <button class="btn" id="newProj">New</button>
+          </div>
+        </div>
+
+        <div class="card-b">
+          <div id="app" class="stack"></div>
+          <div class="sep"></div>
+          <div class="hint">
+            Tip: paste <span class="mono">background-image</span> (or a whole rule). We’ll split layers and show each
+            one + the final composite.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { $, $$, ready, el, debounce, injectCSS, store, measure, installGlobalErrorHandlers } from "./helpers.js";
+
+      const setCSS = injectCSS();
+
+      // ---------- constants ----------
+      const LS_KEY = "gradhelper:v1:projects";
+      const LS_ACTIVE = "gradhelper:v1:active";
+
+      // ---------- tiny utils ----------
+      const nowId = () => `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+
+      function clamp(n, a, b) {
+        return Math.max(a, Math.min(b, n));
+      }
+
+      function safeJSONParse(s, fallback) {
+        try {
+          return JSON.parse(s);
+        } catch {
+          return fallback;
+        }
+      }
+
+      function splitTopLevelCommas(input) {
+        // Splits "linear-gradient(...), radial-gradient(...), url(...)" at top-level commas (paren-aware)
+        const s = String(input || "").trim();
+        const out = [];
+        let buf = "";
+        let depth = 0;
+        let inStr = false;
+        let quote = "";
+
+        for (let i = 0; i < s.length; i++) {
+          const ch = s[i];
+
+          if (inStr) {
+            buf += ch;
+            if (ch === quote && s[i - 1] !== "\\") {
+              inStr = false;
+              quote = "";
+            }
+            continue;
+          }
+
+          if (ch === '"' || ch === "'") {
+            inStr = true;
+            quote = ch;
+            buf += ch;
+            continue;
+          }
+
+          if (ch === "(") depth++;
+          if (ch === ")") depth = Math.max(0, depth - 1);
+
+          if (ch === "," && depth === 0) {
+            const piece = buf.trim();
+            if (piece) out.push(piece);
+            buf = "";
+            continue;
+          }
+
+          buf += ch;
+        }
+
+        const last = buf.trim();
+        if (last) out.push(last);
+        return out;
+      }
+
+      function extractPropValue(cssText, propNames) {
+        // Attempts to extract: "background-image: ...;" or "background: ...;".
+        // Supports multi-line values (common when pasting formatted CSS).
+        // Returns the last matching property value (common in copied snippets).
+        const s = String(cssText || "");
+        let found = "";
+
+        for (const p of propNames) {
+          // Capture everything up to the next semicolon (or end-of-string).
+          // Note: this is not a full CSS parser; it's a pragmatic extractor for pasted snippets.
+          const re = new RegExp(`\\b${p}\\s*:\\s*([\\s\\S]*?)(?:;|$)`, "gi");
+          let m;
+          while ((m = re.exec(s))) {
+            const v = (m[1] || "").trim();
+            if (v) found = v;
+          }
+        }
+
+        return found;
+      }
+
+      function normalizeInputToModel(rawText) {
+        const raw = String(rawText || "").trim();
+        // Normalize common unicode dashes to hyphen-minus so copied CSS parses reliably.
+        const canon = raw.replace(/[‐‑‒–—−]/g, "-");
+
+        // 1) Try pull background-image / background
+        const bgImg = extractPropValue(canon, ["background-image"]);
+        const bg = extractPropValue(canon, ["background"]);
+
+        // Optional: background-color
+        const bgColor = extractPropValue(canon, ["background-color"])
+          .trim()
+          .replace(/;\s*$/, "");
+
+        // Prefer background-image if present, else background, else treat raw as the value
+        let bgValue = String(bgImg || bg || canon)
+          .trim()
+          .replace(/;\s*$/, "");
+
+        // If we fell back to a full snippet, trim off leading prop name and any trailing subsequent declarations.
+        bgValue = bgValue
+          .replace(/^\s*background-image\s*:\s*/i, "")
+          .replace(/^\s*background\s*:\s*/i, "")
+          .replace(/\n\s*background-[a-z-]+\s*:[\s\S]*$/i, "")
+          .trim();
+
+        // 2) Pull blend modes (optional)
+        const blend = extractPropValue(canon, ["background-blend-mode"]).replace(/;\s*$/, "");
+
+        // 3) Split layers by top-level commas
+        const layers = splitTopLevelCommas(bgValue).map((value, idx) => ({
+          id: `l_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+          value,
+          visible: true,
+          opacity: 1,
+          // blend modes are applied across layers; store per-layer for editing convenience
+          blendMode: "", // assigned below from blend list if present
+        }));
+
+        const blendModes = blend ? blend.split(",").map((x) => x.trim()) : [];
+        for (let i = 0; i < layers.length; i++) {
+          layers[i].blendMode = blendModes[i] || (blendModes.length ? blendModes[blendModes.length - 1] : "normal");
+        }
+
+        const hasBlend = Boolean(blendModes.length);
+
+        return {
+          raw,
+          backgroundColor: bgColor || "",
+          backgroundImage: bgValue,
+          backgroundBlendMode: hasBlend ? blendModes.join(", ") : "",
+          layers,
+        };
+      }
+
+      function composeCSSFromModel(model) {
+        const layers = model.layers.filter((l) => l.visible);
+
+        const bgColor = String(model.backgroundColor || "").trim();
+
+        // Compose background-image
+        const bgImage = layers.map((l) => l.value).join(", ");
+
+        // Compose background-blend-mode (only if any are non-empty)
+        const anyBlend = layers.some((l) => (l.blendMode || "").trim().length);
+        const blend = anyBlend ? layers.map((l) => (l.blendMode || "normal").trim()).join(", ") : "";
+
+        // NOTE: CSS has no per-layer opacity, so we simulate per-layer opacity with an overlay technique later if needed.
+        // For V1, we just keep "opacity" in the model/UI and ignore it in the actual CSS composition.
+        // (We’ll still show it in UI for future work.)
+        return { bgColor, bgImage, blend };
+      }
+
+      function isProbablyGradientLayer(s) {
+        const t = String(s || "").toLowerCase();
+        return t.includes("gradient(");
+      }
+
+      // ---------- state ----------
+      function loadProjects() {
+        const arr = store.get(LS_KEY, []);
+        return Array.isArray(arr) ? arr : [];
+      }
+
+      function saveProjects(projects) {
+        store.set(LS_KEY, projects);
+      }
+
+      function getActiveId() {
+        return store.get(LS_ACTIVE, "");
+      }
+
+      function setActiveId(id) {
+        store.set(LS_ACTIVE, id);
+      }
+
+      function upsertProject(projects, proj) {
+        const idx = projects.findIndex((p) => p.id === proj.id);
+        if (idx >= 0) {
+          projects[idx] = proj;
+        } else {
+          projects.unshift(proj);
+        }
+        return projects;
+      }
+
+      function makeEmptyProject() {
+        const id = nowId();
+        return {
+          id,
+          name: "Untitled",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          ui: {
+            backdrop: "checker",
+            aspect: "auto",
+            split: true,
+          },
+          model: normalizeInputToModel(
+            `background-image:
+  linear-gradient(90deg, rgba(255,0,128,.75) 0%, rgba(0,160,255,.35) 55%, rgba(0,255,170,.65) 100%),
+  radial-gradient(circle at 20% 20%, rgba(255,255,255,.45) 0%, rgba(255,255,255,0) 55%);
+background-blend-mode: screen, normal;`,
+          ),
+        };
+      }
+
+      // ---------- UI ----------
+      ready(() => {
+        const app = $("#app");
+        const status = $("#status");
+
+        // Visible, lightweight error reporting (helps when previews go blank due to invalid CSS or JS exceptions)
+        const errorBox = el("div", { class: "hint", id: "errBox", style: "display:none; white-space: pre-wrap;" });
+        const showErr = (msg) => {
+          errorBox.style.display = msg ? "block" : "none";
+          errorBox.textContent = msg ? `Error: ${msg}` : "";
+        };
+
+        installGlobalErrorHandlers({
+          namespace: "gradhelper",
+          enabled: true,
+          onError: (e) => showErr(e?.message || String(e)),
+          onRejection: (e) => showErr(e?.reason?.message || String(e?.reason || e)),
+        });
+
+        // local styles for this demo
+        setCSS(`
+          .mono { font-family: var(--mono); }
+
+          /* Full-bleed layout for this tool (override app.css container cap). */
+          .container {
+            max-width: none;
+            width: 100%;
+          }
+          /* Use the available viewport height; keep header fixed and scroll body. */
+          .card {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 32px);
+            height: calc(100dvh - 32px);
+          }
+          .card .card-b {
+            flex: 1;
+            overflow: auto;
+            min-height: 0;
+          }
+          /*
+            Layout notes:
+            - Use minmax(0, 1fr) so long <pre> / inputs don't force the grid wider than its container.
+            - Explicit min-width: 0 on grid items prevents the classic “grid overflow due to min-content sizing”.
+          */
+          .grid3 {
+            display: grid;
+            gap: 12px;
+            width: 100%;
+            align-items: start;
+            grid-template-columns:
+              minmax(240px, 320px)
+              minmax(0, 1fr)
+              minmax(280px, 360px);
+          }
+          .grid3 > * { min-width: 0; }
+
+          /* Medium screens: keep left + main, drop right below to avoid cramped columns. */
+          @media (max-width: 1180px) {
+            .grid3 {
+              grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+            }
+            .grid3 > :nth-child(3) {
+              grid-column: 1 / -1;
+            }
+          }
+
+          /* Small screens: stack everything. */
+          @media (max-width: 980px) {
+            .grid3 { grid-template-columns: 1fr; }
+            .grid3 > :nth-child(3) { grid-column: auto; }
+          }
+
+          /* Very small screens: allow controls to shrink instead of overflowing. */
+          @media (max-width: 520px) {
+            .grid3 :where(.minw-160, .minw-220, .minw-240, .minw-260) {
+              min-width: 0 !important;
+              width: 100%;
+            }
+          }
+
+          .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius2);
+            padding: 12px;
+            box-shadow: var(--shadow);
+            min-width: 0;
+          }
+
+          .layerRow {
+            display: grid;
+            grid-template-columns: 18px 1fr;
+            gap: 10px;
+            align-items: start;
+            padding: 8px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+          }
+          .layerRow + .layerRow { margin-top: 10px; }
+
+          .thumb {
+            width: 18px; height: 18px;
+            border-radius: 6px;
+            border: 1px solid var(--border2);
+            background: var(--surface-3);
+          }
+          .thumb.on { outline: 2px solid rgba(120, 170, 255, 0.35); }
+
+          .mini {
+            height: 60px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            background-size: cover;
+          }
+
+          .previewGrid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 12px;
+          }
+          /* Only show 2 columns when there's genuinely room. */
+          @media (min-width: 1240px) { .previewGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+          .previewCard {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius2);
+            padding: 10px;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+          }
+
+          .previewTitle {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+          }
+          .previewTitle .label {
+            font-size: 12px;
+            color: var(--muted);
+          }
+
+          .bigPreview {
+            width: 100%;
+            height: 180px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            background: var(--surface-3);
+            position: relative;
+          }
+
+          .bg-checker {
+            background-image:
+              linear-gradient(45deg, rgba(0,0,0,0.055) 25%, transparent 25%),
+              linear-gradient(-45deg, rgba(0,0,0,0.055) 25%, transparent 25%),
+              linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.055) 75%),
+              linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.055) 75%);
+            background-repeat: repeat;
+            background-size: 18px 18px;
+            background-position: 0 0, 0 9px, 9px -9px, -9px 0px;
+          }
+          .bg-split {
+            background-image: linear-gradient(90deg, rgba(255,255,255,0.9) 0 50%, rgba(0,0,0,0.55) 50% 100%);
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+          }
+          .bg-ramp {
+            background-image: linear-gradient(90deg, #000 0%, #fff 50%, #000 100%);
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+          }
+
+          .overlay {
+            position: absolute; inset: 0;
+          }
+
+          .previewBg {
+            /* Default: backdrops should fill the area, but allow specific backdrops (checker) to override. */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: cover;
+          }
+
+          .previewFg {
+            background-repeat: no-repeat;
+            background-position: center;
+            /* Gradients look best when they map directly to the box. */
+            background-size: 100% 100%;
+          }
+
+          .codebox { max-height: 220px; }
+
+          .kpi { font-size: 12px; color: var(--muted); }
+          .kpi b { color: var(--ink); font-weight: 600; }
+        `);
+
+        // ----- load or create project -----
+        let projects = loadProjects();
+        let activeId = getActiveId();
+        let proj = projects.find((p) => p.id === activeId) || projects[0];
+
+        if (!proj) {
+          proj = makeEmptyProject();
+          projects = upsertProject(projects, proj);
+          saveProjects(projects);
+          setActiveId(proj.id);
+        }
+
+        // ----- render skeleton -----
+        const left = el("div", { class: "panel stack" });
+        const mid = el("div", { class: "panel stack" });
+        const right = el("div", { class: "panel stack" });
+
+        app.append(el("div", { class: "grid3" }, [left, mid, right]));
+
+        // ----- left: projects + io -----
+        const projectSel = el("select", { class: "minw-240", id: "projectSel" });
+        const projectName = el("input", { class: "minw-240", id: "projectName", placeholder: "Project name" });
+
+        const exportBtn = el("button", { class: "btn", id: "exportJson" }, "Export JSON");
+        const importBtn = el("button", { class: "btn", id: "importJson" }, "Import JSON");
+        const importFile = el("input", { type: "file", accept: "application/json", class: "hidden", id: "importFile" });
+
+        left.append(
+          el("div", { class: "h2-sm" }, "Projects"),
+          el("div", { class: "field" }, [el("label", {}, "Active"), projectSel]),
+          el("div", { class: "field" }, [el("label", {}, "Name"), projectName]),
+          el("div", { class: "row" }, [
+            el("button", { class: "btn primary", id: "saveProject" }, "Save"),
+            el("button", { class: "btn danger", id: "deleteProject" }, "Delete"),
+          ]),
+          el("div", { class: "sep" }),
+          el("div", { class: "h2-sm" }, "Import / Export"),
+          el("div", { class: "row" }, [exportBtn, importBtn]),
+          importFile,
+          el("div", { class: "sep" }),
+          el("div", { class: "kpi" }, [
+            el("div", {}, [el("b", {}, "V1 focus:"), " transparency + layer splitting"]),
+            el("div", {}, [el("b", {}, "Notes:"), " per-layer opacity is tracked but not applied to CSS yet"]),
+          ]),
+        );
+
+        // ----- mid: paste + previews -----
+        const cssInput = el("textarea", {
+          rows: 8,
+          class: "minw-260",
+          id: "cssInput",
+          placeholder: "Paste background-image / background / full rule here…",
+        });
+
+        const backdropSel = el("select", { class: "minw-220", id: "backdropSel" }, [
+          el("option", { value: "checker" }, "Backdrop: Checker"),
+          el("option", { value: "split" }, "Backdrop: Split"),
+          el("option", { value: "solid" }, "Backdrop: Solid"),
+          el("option", { value: "ramp" }, "Backdrop: Ramp"),
+        ]);
+
+        const solidBgInput = el("input", {
+          class: "minw-160",
+          id: "solidBg",
+          value: "#0b1020",
+          title: "Solid backdrop color",
+        });
+
+        const splitChk = el("label", { class: "chk" }, [
+          el("input", { type: "checkbox", id: "splitChk" }),
+          el("span", {}, "Split view"),
+        ]);
+
+        const aspectSel = el("select", { class: "minw-160", id: "aspectSel", title: "Preview aspect ratio" }, [
+          el("option", { value: "auto" }, "Aspect: Auto"),
+          el("option", { value: "16 / 9" }, "Aspect: 16:9"),
+          el("option", { value: "4 / 3" }, "Aspect: 4:3"),
+          el("option", { value: "1 / 1" }, "Aspect: 1:1"),
+          el("option", { value: "3 / 4" }, "Aspect: 3:4"),
+          el("option", { value: "9 / 16" }, "Aspect: 9:16"),
+        ]);
+
+        const parseBtn = el("button", { class: "btn primary", id: "parseBtn" }, "Parse");
+        const prettyOut = el("pre", { class: "codebox", id: "prettyOut" });
+
+        const previewsWrap = el("div", { class: "stack", id: "previewsWrap" });
+
+        mid.append(
+          el("div", { class: "h2-sm" }, "Input"),
+          el("div", { class: "field" }, [el("label", {}, "CSS"), cssInput]),
+          el("div", { class: "row row-between" }, [
+            el("div", { class: "row" }, [backdropSel, solidBgInput, aspectSel, splitChk]),
+            el("div", { class: "row" }, [parseBtn]),
+          ]),
+          errorBox,
+          el("div", { class: "sep" }),
+          el("div", { class: "h2-sm" }, "Previews"),
+          previewsWrap,
+          el("div", { class: "sep" }),
+          el("div", { class: "h2-sm" }, "Normalized CSS"),
+          prettyOut,
+        );
+
+        // ----- right: layer stack -----
+        const layerList = el("div", { class: "stack", id: "layerList" });
+
+        right.append(
+          el("div", { class: "h2-sm" }, "Layers"),
+          el("div", { class: "hint" }, "Toggle visibility and blend-modes. Split view shows each layer beside the composite."),
+          layerList,
+        );
+
+        // ----- wiring buttons in header -----
+        $("#saveNow").addEventListener("click", () => doSave(true));
+        $("#newProj").addEventListener("click", () => {
+          const p = makeEmptyProject();
+          projects = upsertProject(projects, p);
+          saveProjects(projects);
+          setActiveId(p.id);
+          proj = p;
+          console.log("[gradhelper] new project", proj.id);
+          renderAll();
+          setStatus("Saved", "saved");
+        });
+
+        // ----- left events -----
+        importBtn.addEventListener("click", () => $("#importFile").click());
+        importFile.addEventListener("change", async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          const text = await f.text();
+          const data = safeJSONParse(text, null);
+          if (!data) {
+            setStatus("Import failed", "");
+            return;
+          }
+
+          // accept either a single project or {projects:[...]}
+          const incoming = Array.isArray(data) ? data : Array.isArray(data.projects) ? data.projects : [data];
+
+          let count = 0;
+          for (const p of incoming) {
+            if (!p || !p.id) continue;
+            // minimal shape check
+            if (!p.model || !p.model.layers) continue;
+            p.updatedAt = Date.now();
+            projects = upsertProject(projects, p);
+            count++;
+          }
+
+          saveProjects(projects);
+          if (count) {
+            proj = projects[0];
+            setActiveId(proj.id);
+            console.log("[gradhelper] imported projects:", count);
+            renderAll();
+            setStatus(`Imported ${count}`, "saved");
+          } else {
+            setStatus("No valid projects", "");
+          }
+          importFile.value = "";
+        });
+
+        exportBtn.addEventListener("click", () => {
+          const payload = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            projects: projects,
+          };
+          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = el("a", { href: url, download: "gradient-helper-projects.json" });
+          document.body.append(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          setStatus("Exported", "saved");
+        });
+
+        $("#saveProject").addEventListener("click", () => doSave(true));
+        $("#deleteProject").addEventListener("click", () => {
+          if (!proj) return;
+          const ok = confirm(`Delete project "${proj.name}"?`);
+          if (!ok) return;
+
+          projects = projects.filter((p) => p.id !== proj.id);
+          saveProjects(projects);
+
+          proj = projects[0] || makeEmptyProject();
+          projects = upsertProject(projects, proj);
+          saveProjects(projects);
+          setActiveId(proj.id);
+
+          console.log("[gradhelper] deleted, active:", proj.id);
+          renderAll();
+          setStatus("Deleted", "");
+        });
+
+        projectSel.addEventListener("change", (e) => {
+          const id = e.target.value;
+          const next = projects.find((p) => p.id === id);
+          if (!next) return;
+          proj = next;
+          setActiveId(proj.id);
+          console.log("[gradhelper] switched:", proj.id);
+          renderAll();
+          setStatus("Loaded", "");
+        });
+
+        projectName.addEventListener(
+          "input",
+          debounce(250, () => {
+            proj.name = projectName.value.trim() || "Untitled";
+            doSave(false);
+          }),
+        );
+
+        // ----- mid events -----
+        cssInput.addEventListener(
+          "input",
+          debounce(300, () => {
+            proj.model = normalizeInputToModel(cssInput.value);
+            proj.updatedAt = Date.now();
+            doSave(false);
+            renderRightLayers();
+            renderPreviews();
+            renderNormalized();
+            setStatus("Saved", "saved");
+          }),
+        );
+
+        parseBtn.addEventListener("click", () => {
+          proj.model = normalizeInputToModel(cssInput.value);
+          proj.updatedAt = Date.now();
+          console.log("[gradhelper] parse click:", proj.model.layers.length, "layers");
+          doSave(true);
+          renderAll();
+          setStatus("Parsed", "saved");
+        });
+
+        backdropSel.addEventListener("change", () => {
+          proj.ui.backdrop = backdropSel.value;
+          proj.updatedAt = Date.now();
+          doSave(false);
+          renderPreviews();
+        });
+
+        aspectSel.addEventListener("change", () => {
+          proj.ui.aspect = aspectSel.value;
+          proj.updatedAt = Date.now();
+          doSave(false);
+          renderPreviews();
+        });
+
+        solidBgInput.addEventListener(
+          "input",
+          debounce(150, () => {
+            renderPreviews();
+          }),
+        );
+
+        $("#splitChk").addEventListener("change", (e) => {
+          proj.ui.split = !!e.target.checked;
+          proj.updatedAt = Date.now();
+          doSave(false);
+          renderPreviews();
+        });
+
+        // ----- debounced save -----
+        const doSave = debounce(250, (loud) => {
+          proj.updatedAt = Date.now();
+          projects = upsertProject(projects, proj);
+          saveProjects(projects);
+          if (loud) console.log("[gradhelper] saved project", proj.id);
+        });
+
+        function setStatus(text, cls) {
+          status.textContent = text;
+          status.classList.toggle("saved", cls === "saved");
+        }
+
+        function renderAll() {
+          showErr("");
+          // sync selector and name
+          renderProjectPicker();
+          projectName.value = proj.name || "Untitled";
+          cssInput.value = proj.model?.raw || "";
+          backdropSel.value = proj.ui?.backdrop || "checker";
+          aspectSel.value = proj.ui?.aspect || "auto";
+          $("#splitChk").checked = !!proj.ui?.split;
+
+          renderRightLayers();
+          renderPreviews();
+          renderNormalized();
+        }
+
+        function renderProjectPicker() {
+          projectSel.innerHTML = "";
+          for (const p of projects) {
+            projectSel.append(el("option", { value: p.id }, p.name || p.id));
+          }
+          projectSel.value = proj.id;
+        }
+
+        function renderRightLayers() {
+          showErr("");
+          layerList.innerHTML = "";
+
+          const layers = proj.model?.layers || [];
+          if (!layers.length) {
+            layerList.append(el("div", { class: "hint" }, "No layers detected yet."));
+            return;
+          }
+
+          layers.forEach((layer, idx) => {
+            const vis = el("input", { type: "checkbox", checked: layer.visible !== false });
+            const mode = el(
+              "select",
+              { class: "minw-160" },
+              ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"].map(
+                (m) => el("option", { value: m }, m),
+              ),
+            );
+
+            mode.value = (layer.blendMode || "normal").trim() || "normal";
+
+            const opacity = el("input", {
+              type: "range",
+              min: "0",
+              max: "1",
+              step: "0.01",
+              value: clamp(layer.opacity ?? 1, 0, 1),
+              title: "Layer opacity (tracked; not applied to CSS yet)",
+            });
+
+            const title = isProbablyGradientLayer(layer.value) ? "gradient" : "image";
+            const isOn = layer.visible !== false;
+            const header = el("div", { class: "row row-between" }, [
+              el("div", { class: "row" }, [
+                el("span", { class: "pill" }, `#${idx + 1} ${title}`),
+                el("span", { class: "pill mono" }, isOn ? "on" : "off"),
+              ]),
+              el("div", { class: "row" }, [
+                el("button", { class: "btn small", onClick: () => soloLayer(idx) }, "Solo"),
+              ]),
+            ]);
+
+            const row = el("div", { class: "layerRow" }, [
+              el("div", { class: `thumb ${isOn ? "on" : ""}` }),
+              el("div", { class: "stack" }, [
+                header,
+                el("div", { class: "row" }, [
+                  el("label", { class: "chk" }, [vis, el("span", {}, "Visible")]),
+                  el("div", { class: "field flex-1" }, [el("label", {}, "Blend"), mode]),
+                ]),
+                el("div", { class: "field" }, [
+                  el("label", {}, "Value"),
+                  el("textarea", { rows: 2, class: "mono", value: layer.value }),
+                ]),
+                el("div", { class: "field" }, [el("label", {}, "Opacity (future)"), opacity]),
+              ]),
+            ]);
+
+            const textarea = row.querySelector("textarea");
+            textarea.addEventListener(
+              "input",
+              debounce(150, () => {
+                layer.value = textarea.value.trim();
+                proj.model.layers[idx] = layer;
+                proj.updatedAt = Date.now();
+                doSave(false);
+                renderPreviews();
+                renderNormalized();
+                setStatus("Saved", "saved");
+              }),
+            );
+
+            vis.addEventListener("change", () => {
+              layer.visible = vis.checked;
+              proj.updatedAt = Date.now();
+              doSave(false);
+              renderPreviews();
+              renderNormalized();
+              setStatus("Saved", "saved");
+            });
+
+            mode.addEventListener("change", () => {
+              layer.blendMode = mode.value;
+              proj.updatedAt = Date.now();
+              doSave(false);
+              renderPreviews();
+              renderNormalized();
+              setStatus("Saved", "saved");
+            });
+
+            opacity.addEventListener(
+              "input",
+              debounce(50, () => {
+                layer.opacity = Number(opacity.value);
+                proj.updatedAt = Date.now();
+                doSave(false);
+                // Not applied to CSS yet; keep in model for later.
+                setStatus("Saved", "saved");
+              }),
+            );
+
+            layerList.append(row);
+          });
+
+          function soloLayer(i) {
+            const layers = proj.model.layers;
+            const anyOtherOn = layers.some((l, idx) => idx !== i && l.visible);
+            if (anyOtherOn) {
+              layers.forEach((l, idx) => (l.visible = idx === i));
+            } else {
+              layers.forEach((l) => (l.visible = true));
+            }
+            proj.updatedAt = Date.now();
+            doSave(false);
+            renderRightLayers();
+            renderPreviews();
+            renderNormalized();
+            setStatus("Saved", "saved");
+          }
+        }
+
+        function renderPreviews() {
+          const model = proj.model;
+          if (!model) return;
+
+          try {
+            previewsWrap.innerHTML = "";
+            const { bgColor, bgImage, blend } = composeCSSFromModel(model);
+
+          const wrap = el("div", { class: "previewGrid" });
+
+          const composite = makePreviewCard("Final composite", () => {
+            const p = makePreviewBox();
+            p.overlay.style.backgroundColor = bgColor || "transparent";
+            p.overlay.style.backgroundImage = bgImage || "none";
+            p.overlay.style.backgroundBlendMode = blend || "normal";
+            return p.root;
+          });
+
+          wrap.append(composite);
+
+          if (proj.ui?.split) {
+            model.layers.forEach((layer, idx) => {
+              if (!layer.visible) return;
+              wrap.append(
+                makePreviewCard(`Layer ${idx + 1}`, () => {
+                  const p = makePreviewBox();
+                  // Include base background-color so transparent layers still read correctly.
+                  p.overlay.style.backgroundColor = bgColor || "transparent";
+                  p.overlay.style.backgroundImage = layer.value || "none";
+                  // Blend mode does nothing alone visually; keep normal.
+                  p.overlay.style.backgroundBlendMode = "normal";
+                  return p.root;
+                }),
+              );
+            });
+          }
+
+            previewsWrap.append(wrap);
+          } catch (err) {
+            showErr(err?.message || String(err));
+          }
+
+          function makePreviewCard(title, contentFn) {
+            return el("div", { class: "previewCard stack" }, [
+              el("div", { class: "previewTitle" }, [
+                el("div", { class: "label" }, title),
+                el("div", { class: "label mono" }, `${(model.layers || []).length} layers`),
+              ]),
+              contentFn(),
+            ]);
+          }
+
+          function makePreviewBox() {
+            const root = el("div", { class: "bigPreview" });
+            const bg = el("div", { class: "overlay previewBg" });
+            const overlay = el("div", { class: "overlay previewFg" });
+
+            // Sizing
+            const ar = String(proj.ui?.aspect || "auto").trim();
+            if (ar && ar !== "auto") {
+              root.style.aspectRatio = ar;
+              root.style.height = "auto";
+              root.style.minHeight = "120px";
+              root.style.maxHeight = "360px";
+            } else {
+              root.style.aspectRatio = "";
+              root.style.height = "";
+              root.style.minHeight = "";
+              root.style.maxHeight = "";
+            }
+
+            // backdrop
+            const mode = proj.ui?.backdrop || "checker";
+            if (mode === "checker") bg.classList.add("bg-checker");
+            if (mode === "split") bg.classList.add("bg-split");
+            if (mode === "ramp") bg.classList.add("bg-ramp");
+            if (mode === "solid") bg.style.background = solidBgInput.value || "#0b1020";
+
+            root.append(bg, overlay);
+            return { root, overlay };
+          }
+        }
+
+        function renderNormalized() {
+          showErr("");
+          const model = proj.model;
+          if (!model) {
+            prettyOut.textContent = "";
+            return;
+          }
+
+          const { bgColor, bgImage, blend } = composeCSSFromModel(model);
+
+          const lines = [];
+          if (bgColor) lines.push(`background-color: ${bgColor};`);
+          lines.push(`background-image: ${bgImage || "none"};`);
+          if (blend) lines.push(`background-blend-mode: ${blend};`);
+          lines.push("");
+          lines.push(`/* layers detected: ${model.layers.length} */`);
+          const alphaLayers = model.layers.filter((l) => /rgba\(|hsla\(|#([0-9a-f]{4}|[0-9a-f]{8})\b/i.test(l.value));
+          lines.push(`/* layers w/ alpha-ish colors: ${alphaLayers.length} */`);
+
+          prettyOut.textContent = lines.join("\n");
+        }
+
+        // initial render
+        measure("renderAll", () => renderAll());
+        setStatus("Loaded", "");
+      });
+    </script>
+  </body>
+</html>
