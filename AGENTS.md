@@ -18,6 +18,13 @@ Minimal template (serve over HTTP so module imports work):
     <title>Demo</title>
 
     <link rel="stylesheet" href="./app.css" />
+
+    <!-- Prefer static styles here (easy to review). -->
+    <style>
+      #app .pill {
+        border-style: dashed;
+      }
+    </style>
   </head>
   <body>
     <div class="container">
@@ -38,9 +45,7 @@ Minimal template (serve over HTTP so module imports work):
     </div>
 
     <script type="module">
-      import { $, ready, el, debounce, injectCSS, store } from "./helpers.js";
-
-      const setCSS = injectCSS();
+      import { $, ready, el, debounce, store } from "./helpers.js";
 
       ready(() => {
         const app = $("#app");
@@ -65,9 +70,6 @@ Minimal template (serve over HTTP so module imports work):
             ),
           ]),
         );
-
-        // Quick, local styling without touching app.css
-        setCSS(`#app .pill { border-style: dashed; }`);
       });
     </script>
   </body>
@@ -133,6 +135,8 @@ unsubscribe();
 ### DX add-ons
 
 - `injectCSS(id = "lab-style") => (cssText) => string` — create/update a `<style>` tag
+
+Prefer `<style>` in the document `<head>` for static rules (easier to review). Use `injectCSS()`/`setCSS()` only for dynamic CSS that changes based on state (sliders, live previews, theme toggles), and keep that injected CSS small and clearly derived from data.
 
 - `measure(label, fn) => any` — logs duration; returns `fn()` result
 
@@ -260,5 +264,5 @@ Prefer these over inline styles:
 
 - Compose primitives: `container` → `card` → `row/stack` → `field/btn/badge`.
 - Override via tokens: set CSS variables on `:root` or a scoped theme wrapper.
-- For one-offs, use `injectCSS()` instead of editing `app.css`.
+- For one-offs, prefer a `<style>` tag in `<head>` (reviewable) or scoped CSS variables; use `injectCSS()`/`setCSS()` only when the CSS must be regenerated dynamically.
 - Keep overrides shallow and local (scope to a demo container).
