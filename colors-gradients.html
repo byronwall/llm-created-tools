@@ -4,548 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>BGFX Helper — Gradients, Masks, Patterns (Light)</title>
-    <style>
-      :root {
-        --bg: #f7f7f8;
-        --panel: #ffffff;
-        --ink: #111827;
-        --muted: #6b7280;
-        --border: #e5e7eb;
-        --border2: #eef2f7;
-        --shadow: 0 12px 30px rgba(17, 24, 39, 0.08);
-        --shadow2: 0 10px 22px rgba(17, 24, 39, 0.06);
-        --brand: #2563eb;
-        --brand2: #1d4ed8;
-        --danger: #dc2626;
-        --ok: #16a34a;
-        --warn: #d97706;
-        --radius: 16px;
-        --radius2: 12px;
-        --mono:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-          "Liberation Mono", "Courier New", monospace;
-        --sans:
-          ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
-          Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: var(--sans);
-        color: var(--ink);
-        background: radial-gradient(
-          1200px 800px at 40% -10%,
-          #ffffff 0%,
-          #f7f7f8 40%,
-          #f3f4f6 100%
-        );
-      }
-
-      header {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        backdrop-filter: blur(10px);
-        background: rgba(247, 247, 248, 0.8);
-        border-bottom: 1px solid var(--border);
-      }
-
-      .header-inner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
-        max-width: 1400px;
-        margin: 0 auto;
-      }
-
-      .title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-width: 240px;
-      }
-
-      .badge {
-        font-size: 12px;
-        padding: 6px 10px;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        background: #fff;
-        color: var(--muted);
-      }
-
-      h1 {
-        margin: 0;
-        font-size: 16px;
-        letter-spacing: 0.2px;
-      }
-      .sub {
-        margin: 0;
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      .actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-      }
-
-      button,
-      select,
-      input,
-      textarea {
-        font: inherit;
-      }
-
-      .btn {
-        appearance: none;
-        border: 1px solid var(--border);
-        background: #fff;
-        color: var(--ink);
-        padding: 8px 10px;
-        border-radius: 10px;
-        cursor: pointer;
-        box-shadow: 0 2px 0 rgba(17, 24, 39, 0.02);
-      }
-      .btn:hover {
-        border-color: #d1d5db;
-      }
-      .btn:active {
-        transform: translateY(1px);
-      }
-      .btn.primary {
-        border-color: rgba(37, 99, 235, 0.25);
-        background: linear-gradient(180deg, #ffffff, #f3f7ff);
-        color: #1d4ed8;
-      }
-      .btn.danger {
-        border-color: rgba(220, 38, 38, 0.25);
-        background: linear-gradient(180deg, #ffffff, #fff1f2);
-        color: #b91c1c;
-      }
-      .btn.ok {
-        border-color: rgba(22, 163, 74, 0.25);
-        background: linear-gradient(180deg, #ffffff, #f0fdf4);
-        color: #166534;
-      }
-      .btn.small {
-        padding: 6px 8px;
-        border-radius: 9px;
-        font-size: 12px;
-      }
-
-      .layout {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 16px;
-        display: grid;
-        grid-template-columns: 340px minmax(420px, 1fr) 420px;
-        gap: 12px;
-        align-items: start;
-      }
-
-      @media (max-width: 1200px) {
-        .layout {
-          grid-template-columns: 340px 1fr;
-        }
-        .right {
-          grid-column: 1 / -1;
-        }
-      }
-      @media (max-width: 900px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
-        .left,
-        .center,
-        .right {
-          grid-column: 1 / -1;
-        }
-      }
-
-      .card {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow2);
-        overflow: hidden;
-      }
-      .card .card-h {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 12px 12px;
-        border-bottom: 1px solid var(--border2);
-        background: linear-gradient(180deg, #fff, #fbfbfc);
-      }
-      .card .card-h h2 {
-        margin: 0;
-        font-size: 13px;
-        color: #111827;
-        letter-spacing: 0.2px;
-      }
-      .card .card-b {
-        padding: 12px;
-      }
-
-      .muted {
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.4;
-      }
-      .row {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .stack {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .sep {
-        height: 1px;
-        background: var(--border2);
-        margin: 10px 0;
-      }
-
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        min-width: 180px;
-      }
-      .field label {
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .field input[type="text"],
-      .field input[type="number"],
-      .field select,
-      .field textarea {
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 8px 10px;
-        outline: none;
-        background: #fff;
-      }
-      .field textarea {
-        min-height: 64px;
-        resize: vertical;
-        font-family: var(--mono);
-        font-size: 12px;
-      }
-
-      .field input[type="range"] {
-        width: 220px;
-      }
-
-      .kpi {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        flex-wrap: wrap;
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .pill {
-        font-size: 12px;
-        border: 1px solid var(--border);
-        background: #fff;
-        border-radius: 999px;
-        padding: 4px 8px;
-        color: var(--muted);
-      }
-
-      /* Layer list */
-      .layer-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        max-height: 520px;
-        overflow: auto;
-        padding-right: 4px;
-      }
-
-      .layer-item {
-        border: 1px solid var(--border);
-        border-radius: var(--radius2);
-        padding: 10px;
-        background: #fff;
-        display: flex;
-        gap: 10px;
-        align-items: flex-start;
-        cursor: pointer;
-      }
-      .layer-item:hover {
-        border-color: #d1d5db;
-      }
-      .layer-item.active {
-        border-color: rgba(37, 99, 235, 0.45);
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-      }
-      .layer-item .meta {
-        flex: 1;
-        min-width: 0;
-      }
-      .layer-item .top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 6px;
-      }
-      .layer-item .name {
-        font-size: 13px;
-        font-weight: 600;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .layer-item .type {
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        color: var(--muted);
-        background: #fafafa;
-        flex: none;
-      }
-      .layer-item .mini {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        align-items: center;
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      .iconbtn {
-        border: 1px solid var(--border);
-        background: #fff;
-        border-radius: 10px;
-        padding: 6px 8px;
-        cursor: pointer;
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .iconbtn:hover {
-        border-color: #d1d5db;
-        color: #374151;
-      }
-      .iconbtn.danger {
-        color: #b91c1c;
-        border-color: rgba(220, 38, 38, 0.25);
-        background: #fff5f5;
-      }
-      .iconbtn.primary {
-        color: #1d4ed8;
-        border-color: rgba(37, 99, 235, 0.25);
-        background: #f5f8ff;
-      }
-
-      /* Preview */
-      .preview-wrap {
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .preview {
-        position: relative;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        height: 460px;
-        background: #ffffff;
-        overflow: hidden;
-        box-shadow: var(--shadow);
-      }
-      .preview .layer {
-        position: absolute;
-        inset: 0;
-        will-change: transform, filter, opacity, background-position;
-        pointer-events: none;
-        transform-origin: 50% 50%;
-      }
-
-      .mask-overlay {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        opacity: 0.55;
-        mix-blend-mode: multiply;
-        display: none;
-      }
-      .mask-overlay.on {
-        display: block;
-      }
-
-      .mask-label {
-        position: absolute;
-        left: 10px;
-        bottom: 10px;
-        font-size: 12px;
-        color: #111827;
-        background: rgba(255, 255, 255, 0.75);
-        border: 1px solid rgba(229, 231, 235, 0.8);
-        border-radius: 999px;
-        padding: 6px 10px;
-        backdrop-filter: blur(8px);
-        display: none;
-      }
-      .mask-overlay.on + .mask-label {
-        display: block;
-      }
-
-      .preview-grid {
-        position: absolute;
-        inset: 0;
-        background:
-          linear-gradient(to right, rgba(17, 24, 39, 0.06) 1px, transparent 1px)
-            0 0 / 24px 24px,
-          linear-gradient(
-              to bottom,
-              rgba(17, 24, 39, 0.06) 1px,
-              transparent 1px
-            )
-            0 0 / 24px 24px;
-        opacity: 0.22;
-        pointer-events: none;
-      }
-
-      /* Code output */
-      .codebox {
-        font-family: var(--mono);
-        font-size: 12px;
-        line-height: 1.45;
-        white-space: pre;
-        overflow: auto;
-        border: 1px solid var(--border);
-        border-radius: var(--radius2);
-        background: #fbfbfd;
-        padding: 10px;
-        max-height: 320px;
-      }
-      .hint {
-        font-size: 12px;
-        color: var(--muted);
-        line-height: 1.45;
-      }
-
-      /* Modal */
-      .modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(17, 24, 39, 0.35);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 16px;
-        z-index: 50;
-      }
-      .modal.on {
-        display: flex;
-      }
-      .modal .sheet {
-        width: min(920px, 100%);
-        background: #fff;
-        border: 1px solid rgba(229, 231, 235, 0.9);
-        border-radius: 18px;
-        box-shadow: var(--shadow);
-        overflow: hidden;
-      }
-      .modal .sheet-h {
-        padding: 12px 14px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        border-bottom: 1px solid var(--border2);
-        background: linear-gradient(180deg, #fff, #fbfbfc);
-      }
-      .modal .sheet-h strong {
-        font-size: 13px;
-      }
-      .modal .sheet-b {
-        padding: 12px 14px;
-        display: grid;
-        gap: 10px;
-      }
-      .modal textarea {
-        width: 100%;
-        min-height: 320px;
-        resize: vertical;
-        font-family: var(--mono);
-        font-size: 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 10px;
-        background: #fbfbfd;
-      }
-
-      /* small checkbox */
-      .chk {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        font-size: 12px;
-        color: var(--muted);
-        user-select: none;
-      }
-      .chk input {
-        transform: translateY(1px);
-      }
-
-      /* stop editor */
-      .stops {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        padding: 10px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius2);
-        background: #fff;
-      }
-      .stop {
-        display: grid;
-        grid-template-columns: 84px 1fr 76px 30px;
-        gap: 8px;
-        align-items: center;
-      }
-      .stop input[type="color"] {
-        width: 84px;
-        height: 34px;
-        padding: 0;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: #fff;
-      }
-      .stop input[type="number"] {
-        width: 76px;
-      }
-      .stop .xbtn {
-        width: 30px;
-        height: 34px;
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: #fff;
-        cursor: pointer;
-        color: var(--muted);
-      }
-      .stop .xbtn:hover {
-        border-color: #d1d5db;
-        color: #374151;
-      }
-    </style>
+    <link rel="stylesheet" href="app.css" />
   </head>
   <body>
     <header>
@@ -599,7 +58,7 @@
               Grid overlay
             </label>
           </div>
-          <p class="muted" style="margin-top: 10px">
+          <p class="muted mt-10">
             Tip: Use layer blend modes + opacity. Masks are per-layer and
             CSS-only.
           </p>
@@ -611,11 +70,11 @@
         <div class="card-h">
           <h2>Preview</h2>
           <div class="row">
-            <div class="field" style="min-width: 160px">
+            <div class="field minw-160">
               <label>Canvas corner radius</label>
               <input type="range" min="0" max="40" step="1" id="canvasRadius" />
             </div>
-            <div class="field" style="min-width: 160px">
+            <div class="field minw-160">
               <label>Canvas background</label>
               <input type="color" id="canvasBg" />
             </div>
@@ -648,14 +107,14 @@
             Select a layer to edit its settings.
           </div>
 
-          <div id="editor" style="display: none">
+          <div id="editor" class="is-hidden">
             <div class="stack">
               <div class="row">
-                <div class="field" style="flex: 1; min-width: 220px">
+                <div class="field flex-1 minw-220">
                   <label>Layer name</label>
                   <input type="text" id="layerName" />
                 </div>
-                <label class="chk" style="margin-top: 18px">
+                <label class="chk mt-18">
                   <input type="checkbox" id="layerEnabled" />
                   Enabled
                 </label>
@@ -735,8 +194,8 @@
 
               <!-- Mask -->
               <div class="stack">
-                <div class="row" style="justify-content: space-between">
-                  <strong style="font-size: 13px">Mask (CSS)</strong>
+                <div class="row row-between">
+                  <strong class="section-title">Mask (CSS)</strong>
                   <label class="chk">
                     <input type="checkbox" id="maskEnabled" />
                     Enable mask
@@ -849,8 +308,8 @@
 
               <!-- Animation -->
               <div class="stack">
-                <div class="row" style="justify-content: space-between">
-                  <strong style="font-size: 13px">Animation (basic CSS)</strong>
+                <div class="row row-between">
+                  <strong class="section-title">Animation (basic CSS)</strong>
                   <span class="pill" id="animNote">Applies to this layer</span>
                 </div>
 
@@ -906,8 +365,8 @@
 
           <!-- Export -->
           <div class="stack">
-            <div class="row" style="justify-content: space-between">
-              <h2 style="margin: 0; font-size: 13px">Export</h2>
+            <div class="row row-between">
+              <h2 class="h2-sm">Export</h2>
               <div class="row">
                 <button class="btn small primary" id="btnCopyHTML">
                   Copy HTML
@@ -923,10 +382,10 @@
               project without Tailwind.
             </div>
 
-            <strong style="font-size: 12px; color: var(--muted)">HTML</strong>
+            <strong class="label-sm">HTML</strong>
             <div class="codebox" id="outHTML"></div>
 
-            <strong style="font-size: 12px; color: var(--muted)">CSS</strong>
+            <strong class="label-sm">CSS</strong>
             <div class="codebox" id="outCSS"></div>
           </div>
         </div>
@@ -1235,12 +694,10 @@
 
       function bumpSavedBadge() {
         el.saveBadge.textContent = "Saved";
-        el.saveBadge.style.borderColor = "rgba(22,163,74,.35)";
-        el.saveBadge.style.color = "#166534";
+        el.saveBadge.classList.add("is-saved");
         window.setTimeout(() => {
           el.saveBadge.textContent = "Autosaved";
-          el.saveBadge.style.borderColor = "";
-          el.saveBadge.style.color = "";
+          el.saveBadge.classList.remove("is-saved");
         }, 900);
       }
 
@@ -1583,9 +1040,7 @@
     `;
 
           const ops = document.createElement("div");
-          ops.style.display = "flex";
-          ops.style.flexDirection = "column";
-          ops.style.gap = "6px";
+          ops.className = "layer-ops";
 
           const up = iconBtn(
             "↑",
@@ -1628,9 +1083,6 @@
           const maskImg = buildMaskCss(sel.mask);
           el.maskOverlay.classList.add("on");
           el.maskOverlay.style.backgroundImage = maskImg;
-          el.maskOverlay.style.backgroundSize = "cover";
-          el.maskOverlay.style.backgroundRepeat = "no-repeat";
-          el.maskOverlay.style.backgroundPosition = "50% 50%";
         } else {
           el.maskOverlay.classList.remove("on");
           el.maskOverlay.style.backgroundImage = "none";
@@ -1714,9 +1166,8 @@
         const s = layer.settings;
 
         const header = document.createElement("div");
-        header.className = "row";
-        header.style.justifyContent = "space-between";
-        header.innerHTML = `<strong style="font-size:13px;">Gradient</strong>`;
+        header.className = "row row-between";
+        header.innerHTML = `<strong class="section-title">Gradient</strong>`;
         wrap.appendChild(header);
 
         // kind + angle + radial shape + position
@@ -1789,8 +1240,7 @@
         row3.className = "row";
 
         const palField = document.createElement("div");
-        palField.className = "field";
-        palField.style.minWidth = "240px";
+        palField.className = "field minw-240";
         const palLabel = document.createElement("label");
         palLabel.textContent = "Palette";
         const palSel = document.createElement("select");
@@ -1816,9 +1266,7 @@
         row3.appendChild(palField);
 
         const pasteField = document.createElement("div");
-        pasteField.className = "field";
-        pasteField.style.flex = "1";
-        pasteField.style.minWidth = "260px";
+        pasteField.className = "field flex-1 minw-260";
         const pasteLabel = document.createElement("label");
         pasteLabel.textContent = "Paste colors (auto-detect hex in any text)";
         const ta = document.createElement("textarea");
@@ -1845,9 +1293,8 @@
         const stopsWrap = document.createElement("div");
         stopsWrap.className = "stack";
         const stopsHdr = document.createElement("div");
-        stopsHdr.className = "row";
-        stopsHdr.style.justifyContent = "space-between";
-        stopsHdr.innerHTML = `<strong style="font-size:13px;">Stops</strong>`;
+        stopsHdr.className = "row row-between";
+        stopsHdr.innerHTML = `<strong class="section-title">Stops</strong>`;
         const addBtn = document.createElement("button");
         addBtn.className = "btn small";
         addBtn.textContent = "+ Stop";
@@ -1935,9 +1382,8 @@
         const s = layer.settings;
 
         const header = document.createElement("div");
-        header.className = "row";
-        header.style.justifyContent = "space-between";
-        header.innerHTML = `<strong style="font-size:13px;">Pattern</strong>`;
+        header.className = "row row-between";
+        header.innerHTML = `<strong class="section-title">Pattern</strong>`;
         wrap.appendChild(header);
 
         const row1 = document.createElement("div");
@@ -2024,9 +1470,8 @@
         const s = layer.settings;
 
         const header = document.createElement("div");
-        header.className = "row";
-        header.style.justifyContent = "space-between";
-        header.innerHTML = `<strong style="font-size:13px;">Noise (CSS-only)</strong>`;
+        header.className = "row row-between";
+        header.innerHTML = `<strong class="section-title">Noise (CSS-only)</strong>`;
         wrap.appendChild(header);
 
         const row1 = document.createElement("div");
@@ -2062,9 +1507,8 @@
         const s = layer.settings;
 
         const header = document.createElement("div");
-        header.className = "row";
-        header.style.justifyContent = "space-between";
-        header.innerHTML = `<strong style="font-size:13px;">Vignette</strong>`;
+        header.className = "row row-between";
+        header.innerHTML = `<strong class="section-title">Vignette</strong>`;
         wrap.appendChild(header);
 
         const row1 = document.createElement("div");

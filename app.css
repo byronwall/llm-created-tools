@@ -657,6 +657,14 @@ textarea {
   min-width: 220px;
 }
 
+.minw-240 {
+  min-width: 240px;
+}
+
+.minw-260 {
+  min-width: 260px;
+}
+
 .flex-1 {
   flex: 1;
 }
