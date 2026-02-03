@@ -337,9 +337,7 @@
         const bg = extractPropValue(canon, ["background"]);
 
         // Optional: background-color
-        const bgColor = extractPropValue(canon, ["background-color"])
-          .trim()
-          .replace(/;\s*$/, "");
+        const bgColor = extractPropValue(canon, ["background-color"]).trim().replace(/;\s*$/, "");
 
         // Prefer background-image if present, else background, else treat raw as the value
         let bgValue = String(bgImg || bg || canon)
@@ -376,6 +374,7 @@
         return {
           raw,
           backgroundColor: bgColor || "",
+          backgroundColorVisible: Boolean(bgColor && bgColor.trim().length),
           backgroundImage: bgValue,
           backgroundBlendMode: hasBlend ? blendModes.join(", ") : "",
           layers,
@@ -385,7 +384,8 @@
       function composeCSSFromModel(model) {
         const layers = model.layers.filter((l) => l.visible);
 
-        const bgColor = String(model.backgroundColor || "").trim();
+        const bgColorVisible = model.backgroundColorVisible !== false;
+        const bgColor = bgColorVisible ? String(model.backgroundColor || "").trim() : "";
 
         // Compose background-image
         const bgImage = layers.map((l) => l.value).join(", ");
@@ -781,12 +781,101 @@ background-blend-mode: screen, normal;`,
           showErr("");
           layerList.innerHTML = "";
 
-          const layers = proj.model?.layers || [];
-          if (!layers.length) {
+          const model = proj.model;
+          const layers = model?.layers || [];
+          const hasColor = Boolean(String(model?.backgroundColor || "").trim().length);
+
+          if (!hasColor && !layers.length) {
             layerList.append(el("div", { class: "hint" }, "No layers detected yet."));
             return;
           }
 
+          // Optional background-color layer shown first (not part of background-image layers)
+          if (hasColor) {
+            const colorVisible = model.backgroundColorVisible !== false;
+            const vis = el("input", { type: "checkbox", checked: colorVisible });
+
+            const title = "color";
+            const header = el("div", { class: "row row-between" }, [
+              el("div", { class: "row" }, [
+                el("span", { class: "pill" }, `#1 ${title}`),
+                el("span", { class: "pill mono" }, colorVisible ? "on" : "off"),
+              ]),
+              el("div", { class: "row" }, [
+                el(
+                  "button",
+                  {
+                    class: "btn small",
+                    onClick: () => {
+                      // Solo color: turn off all image layers; toggle back if already solo.
+                      const anyImgOn = layers.some((l) => l.visible);
+                      if (anyImgOn) {
+                        layers.forEach((l) => (l.visible = false));
+                        model.backgroundColorVisible = true;
+                      } else {
+                        layers.forEach((l) => (l.visible = true));
+                      }
+                      proj.updatedAt = Date.now();
+                      doSave(false);
+                      renderRightLayers();
+                      renderPreviews();
+                      renderNormalized();
+                      setStatus("Saved", "saved");
+                    },
+                  },
+                  "Solo",
+                ),
+              ]),
+            ]);
+
+            const row = el("div", { class: "layerRow" }, [
+              el("div", { class: `thumb ${colorVisible ? "on" : ""}` }),
+              el("div", { class: "stack" }, [
+                header,
+                el("div", { class: "row" }, [el("label", { class: "chk" }, [vis, el("span", {}, "Visible")])]),
+                el("div", { class: "field" }, [
+                  el("label", {}, "Value"),
+                  el("input", { class: "mono", value: String(model.backgroundColor || "").trim() }),
+                ]),
+              ]),
+            ]);
+
+            // Thumb preview: solid color
+            try {
+              row.querySelector(".thumb").style.background = String(model.backgroundColor || "").trim() || "transparent";
+            } catch {
+              // ignore
+            }
+
+            const input = row.querySelector("input.mono");
+            input.addEventListener(
+              "input",
+              debounce(150, () => {
+                model.backgroundColor = input.value.trim();
+                model.backgroundColorVisible = Boolean(model.backgroundColor);
+                proj.updatedAt = Date.now();
+                doSave(false);
+                renderRightLayers();
+                renderPreviews();
+                renderNormalized();
+                setStatus("Saved", "saved");
+              }),
+            );
+
+            vis.addEventListener("change", () => {
+              model.backgroundColorVisible = vis.checked;
+              proj.updatedAt = Date.now();
+              doSave(false);
+              renderRightLayers();
+              renderPreviews();
+              renderNormalized();
+              setStatus("Saved", "saved");
+            });
+
+            layerList.append(row);
+          }
+
+          const numberOffset = hasColor ? 1 : 0;
           layers.forEach((layer, idx) => {
             const vis = el("input", { type: "checkbox", checked: layer.visible !== false });
             const mode = el(
@@ -812,7 +901,7 @@ background-blend-mode: screen, normal;`,
             const isOn = layer.visible !== false;
             const header = el("div", { class: "row row-between" }, [
               el("div", { class: "row" }, [
-                el("span", { class: "pill" }, `#${idx + 1} ${title}`),
+                el("span", { class: "pill" }, `#${idx + 1 + numberOffset} ${title}`),
                 el("span", { class: "pill mono" }, isOn ? "on" : "off"),
               ]),
               el("div", { class: "row" }, [
@@ -903,11 +992,15 @@ background-blend-mode: screen, normal;`,
           const model = proj.model;
           if (!model) return;
 
+          let displayLayerCount = (model.layers?.length || 0) + 0;
+
           try {
             previewsWrap.innerHTML = "";
             const { bgColor, bgImage, blend } = composeCSSFromModel(model);
 
           const wrap = el("div", { class: "previewGrid" });
+
+          displayLayerCount = (model.layers?.length || 0) + (bgColor ? 1 : 0);
 
           const composite = makePreviewCard("Final composite", () => {
             const p = makePreviewBox();
@@ -920,13 +1013,28 @@ background-blend-mode: screen, normal;`,
           wrap.append(composite);
 
           if (proj.ui?.split) {
+            const offset = bgColor ? 1 : 0;
+
+            // Show background-color as its own layer in split mode (but do not apply it to other layer cards).
+            if (bgColor) {
+              wrap.append(
+                makePreviewCard("Layer 1 (color)", () => {
+                  const p = makePreviewBox();
+                  p.overlay.style.backgroundColor = bgColor;
+                  p.overlay.style.backgroundImage = "none";
+                  p.overlay.style.backgroundBlendMode = "normal";
+                  return p.root;
+                }),
+              );
+            }
+
             model.layers.forEach((layer, idx) => {
               if (!layer.visible) return;
               wrap.append(
-                makePreviewCard(`Layer ${idx + 1}`, () => {
+                makePreviewCard(`Layer ${idx + 1 + offset}`, () => {
                   const p = makePreviewBox();
-                  // Include base background-color so transparent layers still read correctly.
-                  p.overlay.style.backgroundColor = bgColor || "transparent";
+                  // Split views should show ONLY that layer (no base background-color).
+                  p.overlay.style.backgroundColor = "transparent";
                   p.overlay.style.backgroundImage = layer.value || "none";
                   // Blend mode does nothing alone visually; keep normal.
                   p.overlay.style.backgroundBlendMode = "normal";
@@ -945,7 +1053,7 @@ background-blend-mode: screen, normal;`,
             return el("div", { class: "previewCard stack" }, [
               el("div", { class: "previewTitle" }, [
                 el("div", { class: "label" }, title),
-                el("div", { class: "label mono" }, `${(model.layers || []).length} layers`),
+                el("div", { class: "label mono" }, `${displayLayerCount} layers`),
               ]),
               contentFn(),
             ]);
