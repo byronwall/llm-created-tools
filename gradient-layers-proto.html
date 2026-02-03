@@ -552,12 +552,13 @@
           status.classList.toggle("saved", !!saved);
         };
 
-        const markDirty = () => {
+        function markDirty() {
           setStatus("Editing…", false);
           saveState(state);
           window.clearTimeout(markDirty._t);
           markDirty._t = window.setTimeout(() => setStatus("Saved", true), 220);
-        };
+          touch();
+        }
 
         // Single place that pushes state -> derived view signals.
         // Call this whenever state mutates (or after render()).
@@ -566,6 +567,12 @@
           css2dText.set(cssBlock2D(state));
           cssAllText.set(cssBlockAll(state));
         };
+
+        // Minimal reactive state trigger.
+        // Any state mutation should call `touch()`; subscribers recompute derived views.
+        const stateTick = signal(0);
+        const touch = () => stateTick.set(stateTick.get() + 1);
+        stateTick.subscribe(() => updateDerived());
 
         const ensureSelections = () => {
           if (!state.oneD.selectedLayerId) state.oneD.selectedLayerId = state.oneD.layers?.[0]?.id ?? null;
@@ -592,7 +599,7 @@
           app.append(oneD, twoD);
 
           // Static markup owns the codeboxes; this just refreshes their contents.
-          updateDerived();
+          touch();
 
           // After DOM insertion, refresh generated CSS + handle positioning.
           requestAnimationFrame(() => {
@@ -954,7 +961,7 @@
             preview2dShadow = node;
           };
 
-          const updateCSSBoxes = () => updateDerived();
+          const updateCSSBoxes = () => touch();
 
           // Expose for other builders (avoids duplicating code)
           build1D.updatePreview2dShadow = updatePreview2dShadow;
@@ -1324,9 +1331,6 @@
         setStatus("Ready", true);
         render();
         build1D.updateCSSBoxes?.();
-
-        // Ensure derived outputs are current even if CSS export is outside #app.
-        updateDerived();
 
         // CSS export buttons (static markup; no JS DOM-building needed)
         btnCopy1D?.addEventListener("click", async () => {
