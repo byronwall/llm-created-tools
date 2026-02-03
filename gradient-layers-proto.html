@@ -14,6 +14,7 @@
           <h2>Gradient Layers Prototype</h2>
           <div class="row">
             <span class="badge" id="status">Idle</span>
+            <span class="pill" id="summary" title="Live summary (derived from state)">…</span>
             <button class="btn" id="reset">Reset</button>
             <button class="btn primary" id="copyAll">Copy CSS</button>
           </div>
@@ -521,10 +522,18 @@
           .rowBetween { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
           .codebox { font-size: 12px; line-height: 1.45; }
+
+          #summary {
+            max-width: 520px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
         `);
 
         const app = $("#app");
         const status = $("#status");
+        const summary = $("#summary");
         const btnReset = $("#reset");
         const btnCopyAll = $("#copyAll");
 
@@ -541,9 +550,14 @@
         const css2dText = signal("");
         const cssAllText = signal("");
 
+        const summaryText = signal("…");
+
         css1dEl && css1dText.subscribe((t) => (css1dEl.textContent = t));
         css2dEl && css2dText.subscribe((t) => (css2dEl.textContent = t));
         cssAllEl && cssAllText.subscribe((t) => (cssAllEl.textContent = t));
+        summary && summaryText.subscribe((t) => {
+          summary.textContent = t;
+        });
 
         let state = loadState();
 
@@ -566,6 +580,16 @@
           css1dText.set(cssBlock1D(state));
           css2dText.set(cssBlock2D(state));
           cssAllText.set(cssBlockAll(state));
+
+          const oneTotal = state.oneD.layers?.length ?? 0;
+          const oneOn = (state.oneD.layers || []).filter((l) => l.enabled).length;
+          const twoTotal = state.twoD.points?.length ?? 0;
+          const twoOn = (state.twoD.points || []).filter((p) => p.enabled).length;
+          const selLayer = state.oneD.layers?.find((l) => l.id === state.oneD.selectedLayerId)?.name;
+          const selPoint = state.twoD.points?.find((p) => p.id === state.twoD.selectedPointId)?.name;
+          summaryText.set(
+            `1D ${oneOn}/${oneTotal}${selLayer ? ` • ${selLayer}` : ""}   |   2D ${twoOn}/${twoTotal}${selPoint ? ` • ${selPoint}` : ""}`,
+          );
         };
 
         // Minimal reactive state trigger.
