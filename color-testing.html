@@ -138,6 +138,7 @@
               <label>Output stop set</label>
               <select id="outputStops">
                 <option value="tints24" selected>Tints-24 (0..2300)</option>
+                <option value="theme24">Theme-24 (100..2400)</option>
                 <option value="tw11">Tailwind-11 (50..950)</option>
                 <option value="custom">Custom count (even)</option>
               </select>
@@ -168,6 +169,14 @@
               </select>
             </div>
             <div>
+              <label>Output value format</label>
+              <select id="outputFormat">
+                <option value="hex" selected>Hex (#RRGGBB)</option>
+                <option value="rgb">RGB (rgb(r,g,b))</option>
+                <option value="hsl">HSL (hsl(h,s%,l%))</option>
+              </select>
+            </div>
+            <div>
               <label>Scale name (optional)</label>
               <input id="scaleName" type="text" placeholder="e.g. primary" value="scale" />
             </div>
@@ -195,6 +204,7 @@
             <div class="tab active" data-tab="view">Viewer</div>
             <div class="tab" data-tab="json">JSON</div>
             <div class="tab" data-tab="css">CSS Vars</div>
+            <div class="tab" data-tab="scss">SCSS Theme</div>
             <div class="tab" data-tab="tw">Tailwind Object</div>
           </div>
         </div>
@@ -211,6 +221,12 @@
               <button id="copyCss">Copy CSS</button>
             </div>
             <pre id="cssOut"></pre>
+          </div>
+          <div id="tab-scss" style="display:none;">
+            <div class="actions">
+              <button id="copyScss">Copy SCSS</button>
+            </div>
+            <pre id="scssOut"></pre>
           </div>
           <div id="tab-tw" style="display:none;">
             <div class="actions">
@@ -307,7 +323,13 @@
       tints24: {
         name: "Tints-24",
         // 24 values, matching your screenshot style: 0, 50, 100, 200..900, 1000..2300
-        stops: [0,50,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300]
+        stops: [0,50,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300,2400]
+      },
+      theme24: {
+        name: "Theme-24",
+        // 24 interpolation positions labeled 100..2400 (no 0-token).
+        // Start at 50 so the lightest value maps to 100.
+        stops: [50,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300]
       },
       even: {
         name: "Even 0..1",
@@ -330,6 +352,7 @@
       const sel = $("outputStops").value;
       if (sel === "tw11") return STOPSETS.tw11.stops;
       if (sel === "tints24") return STOPSETS.tints24.stops;
+      if (sel === "theme24") return STOPSETS.theme24.stops;
       const n = Math.max(2, Math.min(256, Number($("customCount").value || 24)));
       return evenStops(n);
     }
@@ -505,9 +528,41 @@
       // outStops can be [0..1] or numeric. Use labels if known.
       const sel = outputStopsKey;
       if (sel === "tints24") return String(STOPSETS.tints24.stops[i]);
+      if (sel === "theme24") return String((i + 1) * 100);
       if (sel === "tw11") return String(STOPSETS.tw11.stops[i]);
       // custom/even: show index
       return String(i);
+    }
+
+    function formatColorValue(hex, format) {
+      const rgb01 = hexToRgb01(hex);
+      if (!rgb01) return hex;
+      if (format === "rgb") {
+        const r = Math.round(clamp01(rgb01.r) * 255);
+        const g = Math.round(clamp01(rgb01.g) * 255);
+        const b = Math.round(clamp01(rgb01.b) * 255);
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+      if (format === "hsl") {
+        const r = clamp01(rgb01.r), g = clamp01(rgb01.g), b = clamp01(rgb01.b);
+        const max = Math.max(r,g,b), min = Math.min(r,g,b);
+        const d = max - min;
+        let h = 0;
+        if (d !== 0) {
+          if (max === r) h = ((g - b) / d) % 6;
+          else if (max === g) h = (b - r) / d + 2;
+          else h = (r - g) / d + 4;
+          h *= 60;
+          if (h < 0) h += 360;
+        }
+        const l = (max + min) / 2;
+        const s = d === 0 ? 0 : d / (1 - Math.abs(2*l - 1));
+        const hh = Math.round(h);
+        const ss = Math.round(s * 100);
+        const ll = Math.round(l * 100);
+        return `hsl(${hh}, ${ss}%, ${ll}%)`;
+      }
+      return hex;
     }
 
     // ---------------------------
@@ -521,10 +576,16 @@
       const outStops = resolveOutputStops();
       const space = $("space").value;
       const gamutMode = $("gamut").value;
+      const outputFormat = $("outputFormat").value;
+
+      // Always provide a theme-compatible 24-stop output for SCSS light/dark pairing.
+      const themeStopsKey = "theme24";
+      const themeOutStops = STOPSETS.theme24.stops;
 
       const jsonAll = {};
       const cssBlocks = [];
       const twBlocks = [];
+      const scssBlocks = [];
 
       scales.forEach((scale, si) => {
         const anchorHexes = parseHexColors(scale.raw);
@@ -555,12 +616,25 @@
 
         const generated = generateScale(anchorHexes, inStopsFinal, outStopsFinal, space, gamutMode);
 
+        // Theme-scale output (24) for SCSS light/dark mode pairing.
+        const themeOutStopsResolved = themeOutStops.slice();
+        const themeIsUnit = themeOutStopsResolved.every(x => x >= 0 && x <= 1);
+        let themeOutStopsFinal = themeOutStopsResolved.slice();
+        if (inIsUnit && !themeIsUnit) {
+          const min = themeOutStopsResolved[0], max = themeOutStopsResolved[themeOutStopsResolved.length-1];
+          themeOutStopsFinal = themeOutStopsResolved.map(x => (x - min) / (max - min));
+        } else if (!inIsUnit && themeIsUnit) {
+          const min = inStops[0], max = inStops[inStops.length-1];
+          inStopsFinal = inStops.map(x => (x - min) / (max - min));
+        }
+        const generatedTheme = generateScale(anchorHexes, inStopsFinal, themeOutStopsFinal, space, gamutMode);
+
         // Build map for code outputs
         const labelKey = outStopsKey;
         const scaleObj = {};
         generated.forEach((p, i) => {
           const key = stopLabelFor(resolveOutputStops(), i, labelKey);
-          scaleObj[key] = p.hex;
+          scaleObj[key] = formatColorValue(p.hex, outputFormat);
         });
 
         jsonAll[scale.name] = scaleObj;
@@ -571,6 +645,15 @@
         cssBlocks.push(`/* ${scale.name} */\n:root {\n${cssVarLines}\n}\n`);
 
         twBlocks.push(`// ${scale.name}\n${scale.name}: ${JSON.stringify(scaleObj, null, 2)}`);
+
+        // SCSS theme output: 100..2400 with dark inverted order.
+        const themeValues = generatedTheme.map(p => formatColorValue(p.hex, outputFormat));
+        const scssLines = themeValues.map((lightValue, idx) => {
+          const token = (idx + 1) * 100;
+          const darkValue = themeValues[themeValues.length - 1 - idx];
+          return `@include define-color-modes(${scale.name}-${token}, ${lightValue}, ${darkValue});`;
+        }).join("\n");
+        scssBlocks.push(`// ${scale.name} palette (light/dark)\n${scssLines}\n`);
 
         // Render viewer section
         const section = document.createElement("div");
@@ -598,9 +681,12 @@
 
           const info = document.createElement("div");
           info.className = "info";
+          const formatted = formatColorValue(p.hex, outputFormat);
           info.innerHTML = `
             <div class="k">hex</div>
             <div class="v">${p.hex}</div>
+            <div class="k">output</div>
+            <div class="v">${formatted}</div>
             <div class="actions">
               <button data-copy="${p.hex}">Copy</button>
             </div>
@@ -623,6 +709,7 @@
       // Outputs
       $("jsonOut").textContent = JSON.stringify(jsonAll, null, 2);
       $("cssOut").textContent = cssBlocks.join("\n");
+      $("scssOut").textContent = scssBlocks.join("\n");
       $("twOut").textContent = `module.exports = {\n  theme: {\n    extend: {\n      colors: {\n${Object.keys(jsonAll).map(name => `        ${twBlocks.find(b => b.startsWith("// " + name)).split("\n").slice(1).join("\n").replace(/^/gm,"        ")},`).join("\n")}\n      }\n    }\n  }\n}\n`;
 
       return { jsonAll, css: $("cssOut").textContent, tw: $("twOut").textContent };
@@ -644,7 +731,7 @@
     // ---------------------------
     function setTab(name) {
       document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
-      ["view","json","css","tw"].forEach(k => {
+      ["view","json","css","scss","tw"].forEach(k => {
         $("tab-" + k).style.display = (k === name) ? "" : "none";
       });
     }
@@ -706,6 +793,7 @@
       $("tab-view").innerHTML = "";
       $("jsonOut").textContent = "";
       $("cssOut").textContent = "";
+      $("scssOut").textContent = "";
       $("twOut").textContent = "";
       setStatus("Cleared.", "");
     });
@@ -713,10 +801,11 @@
     // Copy output blocks
     $("copyJson").addEventListener("click", () => copyText($("jsonOut").textContent));
     $("copyCss").addEventListener("click", () => copyText($("cssOut").textContent));
+    $("copyScss").addEventListener("click", () => copyText($("scssOut").textContent));
     $("copyTw").addEventListener("click", () => copyText($("twOut").textContent));
 
     // Auto-regenerate on some control changes
-    ["inputStops","outputStops","customCount","space","gamut","scaleName"].forEach(id => {
+    ["inputStops","outputStops","customCount","space","gamut","outputFormat","scaleName"].forEach(id => {
       $(id).addEventListener("change", () => {
         // keep it snappy: only auto-generate if we already have output
         if ($("tab-view").innerHTML.trim()) generateNow();

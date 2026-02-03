@@ -1,0 +1,2826 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>BGFX Helper — Gradients, Masks, Patterns (Light)</title>
+    <style>
+      :root {
+        --bg: #f7f7f8;
+        --panel: #ffffff;
+        --ink: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --border2: #eef2f7;
+        --shadow: 0 12px 30px rgba(17, 24, 39, 0.08);
+        --shadow2: 0 10px 22px rgba(17, 24, 39, 0.06);
+        --brand: #2563eb;
+        --brand2: #1d4ed8;
+        --danger: #dc2626;
+        --ok: #16a34a;
+        --warn: #d97706;
+        --radius: 16px;
+        --radius2: 12px;
+        --mono:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        --sans:
+          ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+          Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--ink);
+        background: radial-gradient(
+          1200px 800px at 40% -10%,
+          #ffffff 0%,
+          #f7f7f8 40%,
+          #f3f4f6 100%
+        );
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+        background: rgba(247, 247, 248, 0.8);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 240px;
+      }
+
+      .badge {
+        font-size: 12px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #fff;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: 0.2px;
+      }
+      .sub {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      button,
+      select,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--ink);
+        padding: 8px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        box-shadow: 0 2px 0 rgba(17, 24, 39, 0.02);
+      }
+      .btn:hover {
+        border-color: #d1d5db;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn.primary {
+        border-color: rgba(37, 99, 235, 0.25);
+        background: linear-gradient(180deg, #ffffff, #f3f7ff);
+        color: #1d4ed8;
+      }
+      .btn.danger {
+        border-color: rgba(220, 38, 38, 0.25);
+        background: linear-gradient(180deg, #ffffff, #fff1f2);
+        color: #b91c1c;
+      }
+      .btn.ok {
+        border-color: rgba(22, 163, 74, 0.25);
+        background: linear-gradient(180deg, #ffffff, #f0fdf4);
+        color: #166534;
+      }
+      .btn.small {
+        padding: 6px 8px;
+        border-radius: 9px;
+        font-size: 12px;
+      }
+
+      .layout {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 340px minmax(420px, 1fr) 420px;
+        gap: 12px;
+        align-items: start;
+      }
+
+      @media (max-width: 1200px) {
+        .layout {
+          grid-template-columns: 340px 1fr;
+        }
+        .right {
+          grid-column: 1 / -1;
+        }
+      }
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .left,
+        .center,
+        .right {
+          grid-column: 1 / -1;
+        }
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow2);
+        overflow: hidden;
+      }
+      .card .card-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 12px;
+        border-bottom: 1px solid var(--border2);
+        background: linear-gradient(180deg, #fff, #fbfbfc);
+      }
+      .card .card-h h2 {
+        margin: 0;
+        font-size: 13px;
+        color: #111827;
+        letter-spacing: 0.2px;
+      }
+      .card .card-b {
+        padding: 12px;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .sep {
+        height: 1px;
+        background: var(--border2);
+        margin: 10px 0;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 180px;
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .field input[type="text"],
+      .field input[type="number"],
+      .field select,
+      .field textarea {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        outline: none;
+        background: #fff;
+      }
+      .field textarea {
+        min-height: 64px;
+        resize: vertical;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .field input[type="range"] {
+        width: 220px;
+      }
+
+      .kpi {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .pill {
+        font-size: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 999px;
+        padding: 4px 8px;
+        color: var(--muted);
+      }
+
+      /* Layer list */
+      .layer-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 520px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .layer-item {
+        border: 1px solid var(--border);
+        border-radius: var(--radius2);
+        padding: 10px;
+        background: #fff;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        cursor: pointer;
+      }
+      .layer-item:hover {
+        border-color: #d1d5db;
+      }
+      .layer-item.active {
+        border-color: rgba(37, 99, 235, 0.45);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+      .layer-item .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .layer-item .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .layer-item .name {
+        font-size: 13px;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .layer-item .type {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        background: #fafafa;
+        flex: none;
+      }
+      .layer-item .mini {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .iconbtn {
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 10px;
+        padding: 6px 8px;
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .iconbtn:hover {
+        border-color: #d1d5db;
+        color: #374151;
+      }
+      .iconbtn.danger {
+        color: #b91c1c;
+        border-color: rgba(220, 38, 38, 0.25);
+        background: #fff5f5;
+      }
+      .iconbtn.primary {
+        color: #1d4ed8;
+        border-color: rgba(37, 99, 235, 0.25);
+        background: #f5f8ff;
+      }
+
+      /* Preview */
+      .preview-wrap {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .preview {
+        position: relative;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        height: 460px;
+        background: #ffffff;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+      .preview .layer {
+        position: absolute;
+        inset: 0;
+        will-change: transform, filter, opacity, background-position;
+        pointer-events: none;
+        transform-origin: 50% 50%;
+      }
+
+      .mask-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.55;
+        mix-blend-mode: multiply;
+        display: none;
+      }
+      .mask-overlay.on {
+        display: block;
+      }
+
+      .mask-label {
+        position: absolute;
+        left: 10px;
+        bottom: 10px;
+        font-size: 12px;
+        color: #111827;
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid rgba(229, 231, 235, 0.8);
+        border-radius: 999px;
+        padding: 6px 10px;
+        backdrop-filter: blur(8px);
+        display: none;
+      }
+      .mask-overlay.on + .mask-label {
+        display: block;
+      }
+
+      .preview-grid {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(to right, rgba(17, 24, 39, 0.06) 1px, transparent 1px)
+            0 0 / 24px 24px,
+          linear-gradient(
+              to bottom,
+              rgba(17, 24, 39, 0.06) 1px,
+              transparent 1px
+            )
+            0 0 / 24px 24px;
+        opacity: 0.22;
+        pointer-events: none;
+      }
+
+      /* Code output */
+      .codebox {
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius2);
+        background: #fbfbfd;
+        padding: 10px;
+        max-height: 320px;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      /* Modal */
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(17, 24, 39, 0.35);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 50;
+      }
+      .modal.on {
+        display: flex;
+      }
+      .modal .sheet {
+        width: min(920px, 100%);
+        background: #fff;
+        border: 1px solid rgba(229, 231, 235, 0.9);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .modal .sheet-h {
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--border2);
+        background: linear-gradient(180deg, #fff, #fbfbfc);
+      }
+      .modal .sheet-h strong {
+        font-size: 13px;
+      }
+      .modal .sheet-b {
+        padding: 12px 14px;
+        display: grid;
+        gap: 10px;
+      }
+      .modal textarea {
+        width: 100%;
+        min-height: 320px;
+        resize: vertical;
+        font-family: var(--mono);
+        font-size: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+        background: #fbfbfd;
+      }
+
+      /* small checkbox */
+      .chk {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        user-select: none;
+      }
+      .chk input {
+        transform: translateY(1px);
+      }
+
+      /* stop editor */
+      .stops {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius2);
+        background: #fff;
+      }
+      .stop {
+        display: grid;
+        grid-template-columns: 84px 1fr 76px 30px;
+        gap: 8px;
+        align-items: center;
+      }
+      .stop input[type="color"] {
+        width: 84px;
+        height: 34px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+      }
+      .stop input[type="number"] {
+        width: 76px;
+      }
+      .stop .xbtn {
+        width: 30px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #fff;
+        cursor: pointer;
+        color: var(--muted);
+      }
+      .stop .xbtn:hover {
+        border-color: #d1d5db;
+        color: #374151;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <div class="title">
+          <div>
+            <h1>BGFX Helper</h1>
+            <p class="sub">
+              Gradients • Masks • Patterns • Layers • Export CSS+HTML
+            </p>
+          </div>
+          <span class="badge" id="saveBadge">Autosaved</span>
+        </div>
+
+        <div class="actions">
+          <button class="btn small primary" id="btnAddGradient">
+            + Gradient
+          </button>
+          <button class="btn small" id="btnAddPattern">+ Pattern</button>
+          <button class="btn small" id="btnAddNoise">+ Noise</button>
+          <button class="btn small" id="btnAddVignette">+ Vignette</button>
+          <span class="pill">Presets:</span>
+          <button class="btn small" id="btnPresetMesh">Mesh</button>
+          <button class="btn small" id="btnPresetAurora">Aurora</button>
+          <span class="pill">Data:</span>
+          <button class="btn small" id="btnJSON">JSON Import/Export</button>
+          <button class="btn small danger" id="btnClear">Clear</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- LEFT: Layer panel -->
+      <section class="card left">
+        <div class="card-h">
+          <h2>Layers</h2>
+          <div class="kpi">
+            <span class="pill" id="layerCount">0 layers</span>
+          </div>
+        </div>
+        <div class="card-b">
+          <div class="layer-list" id="layerList"></div>
+          <div class="sep"></div>
+          <div class="row">
+            <label class="chk">
+              <input type="checkbox" id="toggleMaskPreview" />
+              Mask preview overlay
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="toggleGrid" checked />
+              Grid overlay
+            </label>
+          </div>
+          <p class="muted" style="margin-top: 10px">
+            Tip: Use layer blend modes + opacity. Masks are per-layer and
+            CSS-only.
+          </p>
+        </div>
+      </section>
+
+      <!-- CENTER: Preview -->
+      <section class="card center">
+        <div class="card-h">
+          <h2>Preview</h2>
+          <div class="row">
+            <div class="field" style="min-width: 160px">
+              <label>Canvas corner radius</label>
+              <input type="range" min="0" max="40" step="1" id="canvasRadius" />
+            </div>
+            <div class="field" style="min-width: 160px">
+              <label>Canvas background</label>
+              <input type="color" id="canvasBg" />
+            </div>
+          </div>
+        </div>
+        <div class="preview-wrap">
+          <div class="preview" id="preview">
+            <div class="preview-grid" id="previewGrid"></div>
+            <div class="mask-overlay" id="maskOverlay"></div>
+            <div class="mask-label">Mask preview</div>
+          </div>
+          <div class="row">
+            <span class="pill" id="selectedLabel">No layer selected</span>
+            <span class="pill" id="storageLabel">LocalStorage: on</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Editor + Export -->
+      <section class="card right">
+        <div class="card-h">
+          <h2>Layer editor</h2>
+          <div class="row">
+            <button class="btn small" id="btnDuplicate">Duplicate</button>
+            <button class="btn small danger" id="btnDelete">Delete</button>
+          </div>
+        </div>
+        <div class="card-b">
+          <div id="noSelection" class="muted">
+            Select a layer to edit its settings.
+          </div>
+
+          <div id="editor" style="display: none">
+            <div class="stack">
+              <div class="row">
+                <div class="field" style="flex: 1; min-width: 220px">
+                  <label>Layer name</label>
+                  <input type="text" id="layerName" />
+                </div>
+                <label class="chk" style="margin-top: 18px">
+                  <input type="checkbox" id="layerEnabled" />
+                  Enabled
+                </label>
+              </div>
+
+              <div class="row">
+                <div class="field">
+                  <label>Blend mode</label>
+                  <select id="blendMode">
+                    <option value="normal">normal</option>
+                    <option value="multiply">multiply</option>
+                    <option value="screen">screen</option>
+                    <option value="overlay">overlay</option>
+                    <option value="darken">darken</option>
+                    <option value="lighten">lighten</option>
+                    <option value="color-dodge">color-dodge</option>
+                    <option value="color-burn">color-burn</option>
+                    <option value="hard-light">hard-light</option>
+                    <option value="soft-light">soft-light</option>
+                    <option value="difference">difference</option>
+                    <option value="exclusion">exclusion</option>
+                    <option value="hue">hue</option>
+                    <option value="saturation">saturation</option>
+                    <option value="color">color</option>
+                    <option value="luminosity">luminosity</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label>Opacity</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    id="opacity"
+                  />
+                </div>
+
+                <div class="field">
+                  <label>Blur (px)</label>
+                  <input type="range" min="0" max="60" step="1" id="blur" />
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field">
+                  <label>Translate X (%)</label>
+                  <input type="range" min="-30" max="30" step="1" id="tx" />
+                </div>
+                <div class="field">
+                  <label>Translate Y (%)</label>
+                  <input type="range" min="-30" max="30" step="1" id="ty" />
+                </div>
+                <div class="field">
+                  <label>Scale</label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2.5"
+                    step="0.01"
+                    id="scale"
+                  />
+                </div>
+                <div class="field">
+                  <label>Rotate (deg)</label>
+                  <input type="range" min="-180" max="180" step="1" id="rot" />
+                </div>
+              </div>
+
+              <div class="sep"></div>
+
+              <!-- Type-specific -->
+              <div id="typeEditor"></div>
+
+              <div class="sep"></div>
+
+              <!-- Mask -->
+              <div class="stack">
+                <div class="row" style="justify-content: space-between">
+                  <strong style="font-size: 13px">Mask (CSS)</strong>
+                  <label class="chk">
+                    <input type="checkbox" id="maskEnabled" />
+                    Enable mask
+                  </label>
+                </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label>Mask type</label>
+                    <select id="maskType">
+                      <option value="radial">Radial</option>
+                      <option value="linear">Linear</option>
+                      <option value="stripes">Stripes</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label>Invert</label>
+                    <select id="maskInvert">
+                      <option value="false">No</option>
+                      <option value="true">Yes</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label>Mask angle (deg)</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="360"
+                      step="1"
+                      id="maskAngle"
+                    />
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label>Center X (%)</label>
+                    <input
+                      type="range"
+                      min="-20"
+                      max="120"
+                      step="1"
+                      id="maskX"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>Center Y (%)</label>
+                    <input
+                      type="range"
+                      min="-20"
+                      max="120"
+                      step="1"
+                      id="maskY"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>Inner (%)</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      id="maskInner"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>Outer (%)</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="140"
+                      step="1"
+                      id="maskOuter"
+                    />
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label>Stripe size (px)</label>
+                    <input
+                      type="range"
+                      min="4"
+                      max="120"
+                      step="1"
+                      id="maskStripe"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>Stripe gap (px)</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="120"
+                      step="1"
+                      id="maskGap"
+                    />
+                  </div>
+                </div>
+
+                <p class="muted">
+                  Mask preview overlay shows the selected layer’s mask as
+                  grayscale. Toggle it in the Layers panel.
+                </p>
+              </div>
+
+              <div class="sep"></div>
+
+              <!-- Animation -->
+              <div class="stack">
+                <div class="row" style="justify-content: space-between">
+                  <strong style="font-size: 13px">Animation (basic CSS)</strong>
+                  <span class="pill" id="animNote">Applies to this layer</span>
+                </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label>Type</label>
+                    <select id="animType">
+                      <option value="none">None</option>
+                      <option value="drift">Drift (background-position)</option>
+                      <option value="hue">Hue rotate</option>
+                      <option value="pulse">Pulse opacity</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label>Duration (s)</label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="60"
+                      step="1"
+                      id="animDuration"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label>Easing</label>
+                    <select id="animEasing">
+                      <option value="linear">linear</option>
+                      <option value="ease">ease</option>
+                      <option value="ease-in">ease-in</option>
+                      <option value="ease-out">ease-out</option>
+                      <option value="ease-in-out">ease-in-out</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label>Delay (s)</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="0.5"
+                      id="animDelay"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sep"></div>
+
+          <!-- Export -->
+          <div class="stack">
+            <div class="row" style="justify-content: space-between">
+              <h2 style="margin: 0; font-size: 13px">Export</h2>
+              <div class="row">
+                <button class="btn small primary" id="btnCopyHTML">
+                  Copy HTML
+                </button>
+                <button class="btn small primary" id="btnCopyCSS">
+                  Copy CSS
+                </button>
+                <button class="btn small ok" id="btnCopyBoth">Copy Both</button>
+              </div>
+            </div>
+            <div class="hint">
+              Exports a container plus one div per layer. You can paste into any
+              project without Tailwind.
+            </div>
+
+            <strong style="font-size: 12px; color: var(--muted)">HTML</strong>
+            <div class="codebox" id="outHTML"></div>
+
+            <strong style="font-size: 12px; color: var(--muted)">CSS</strong>
+            <div class="codebox" id="outCSS"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- JSON MODAL -->
+    <div class="modal" id="jsonModal">
+      <div class="sheet">
+        <div class="sheet-h">
+          <strong>JSON Import/Export</strong>
+          <div class="row">
+            <button class="btn small" id="btnExportJSON">Export current</button>
+            <button class="btn small primary" id="btnImportJSON">Import</button>
+            <button class="btn small" id="btnCloseJSON">Close</button>
+          </div>
+        </div>
+        <div class="sheet-b">
+          <div class="muted">
+            - Export gives you a shareable config blob.<br />
+            - Import replaces the current state (and autosaves).
+          </div>
+          <textarea id="jsonText" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /**
+       * BGFX Helper (single-file)
+       * - Keep it simple: live preview uses inline styles per layer
+       * - Export generates HTML + CSS classes for each layer
+       * - Autosaves to LocalStorage, plus JSON import/export
+       */
+
+      const LS_KEY = "bgfx_builder_v1";
+
+      /** ---------- Utilities ---------- */
+      const uid = () =>
+        Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
+
+      function clamp(n, min, max) {
+        return Math.max(min, Math.min(max, n));
+      }
+
+      function fmtPct(n) {
+        return `${Math.round(n)}%`;
+      }
+      function fmtPx(n) {
+        return `${Math.round(n)}px`;
+      }
+
+      function parseColorsFromText(text) {
+        // Extract hex colors (3/4/6/8 digits) from any messy input
+        const matches = (text || "").match(
+          /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g,
+        );
+        const colors = (matches || []).map((c) => c.toUpperCase());
+        // de-dupe while preserving order
+        return [...new Set(colors)];
+      }
+
+      function toStops(colors) {
+        const n = colors.length;
+        if (n === 0) return [];
+        if (n === 1) return [{ color: colors[0], pos: 50 }];
+        return colors.map((c, i) => ({
+          color: c,
+          pos: Math.round((i / (n - 1)) * 100),
+        }));
+      }
+
+      function safeJsonParse(text) {
+        try {
+          return { ok: true, value: JSON.parse(text) };
+        } catch (e) {
+          return { ok: false, error: e };
+        }
+      }
+
+      function copyToClipboard(text) {
+        return navigator.clipboard.writeText(text);
+      }
+
+      /** ---------- Palettes ---------- */
+      const PALETTES = [
+        {
+          name: "Pastel",
+          colors: ["#FADADD", "#CDEDF6", "#FFF1B6", "#D7F9F1", "#EAD7FF"],
+        },
+        {
+          name: "Ocean",
+          colors: ["#0EA5E9", "#22C55E", "#14B8A6", "#60A5FA", "#1D4ED8"],
+        },
+        {
+          name: "Sunset",
+          colors: ["#F97316", "#FB7185", "#A78BFA", "#F59E0B", "#EF4444"],
+        },
+        {
+          name: "Forest",
+          colors: ["#14532D", "#16A34A", "#22C55E", "#84CC16", "#0F766E"],
+        },
+        {
+          name: "Mono",
+          colors: ["#111827", "#374151", "#9CA3AF", "#E5E7EB", "#FFFFFF"],
+        },
+      ];
+
+      /** ---------- Default layer builders ---------- */
+      function makeBaseLayer(overrides = {}) {
+        return {
+          id: uid(),
+          name: "Layer",
+          type: "gradient", // gradient | pattern | noise | vignette
+          enabled: true,
+          opacity: 1,
+          blendMode: "normal",
+          blur: 0,
+          transform: { x: 0, y: 0, scale: 1, rotate: 0 },
+          animation: { type: "none", duration: 12, easing: "linear", delay: 0 },
+          mask: {
+            enabled: false,
+            type: "radial",
+            invert: false,
+            angle: 0,
+            x: 50,
+            y: 50,
+            inner: 35,
+            outer: 85,
+            stripe: 22,
+            gap: 18,
+          },
+          settings: {},
+          ...overrides,
+        };
+      }
+
+      function makeGradientLayer(name = "Gradient", paletteName = "Pastel") {
+        const palette =
+          PALETTES.find((p) => p.name === paletteName) || PALETTES[0];
+        return makeBaseLayer({
+          name,
+          type: "gradient",
+          settings: {
+            kind: "linear", // linear | radial | conic
+            angle: 135,
+            radialShape: "circle", // circle | ellipse
+            x: 50,
+            y: 50,
+            // Conic: "from angledeg at x% y%"
+            stops: toStops(palette.colors.slice(0, 4)),
+            paletteName,
+            pastedColors: "",
+          },
+        });
+      }
+
+      function makePatternLayer(name = "Pattern") {
+        return makeBaseLayer({
+          name,
+          type: "pattern",
+          opacity: 0.35,
+          blendMode: "multiply",
+          settings: {
+            pattern: "dots", // dots | grid | lines | checker | stripes | diagonal
+            fg: "#111827",
+            bg: "#FFFFFF",
+            size: 18,
+            thickness: 1,
+            offsetX: 0,
+            offsetY: 0,
+          },
+        });
+      }
+
+      function makeNoiseLayer(name = "Noise") {
+        return makeBaseLayer({
+          name,
+          type: "noise",
+          opacity: 0.12,
+          blendMode: "overlay",
+          settings: {
+            scale: 8, // px tile-ish
+            intensity: 1.0, // multiplier (exported as opacity-ish)
+          },
+        });
+      }
+
+      function makeVignetteLayer(name = "Vignette") {
+        return makeBaseLayer({
+          name,
+          type: "vignette",
+          opacity: 0.55,
+          blendMode: "multiply",
+          settings: {
+            strength: 0.6, // 0..1
+            size: 80, // percent-ish outer radius
+          },
+        });
+      }
+
+      /** ---------- App State ---------- */
+      const DEFAULT_STATE = {
+        version: 1,
+        canvas: {
+          radius: 18,
+          bg: "#FFFFFF",
+        },
+        ui: {
+          selectedLayerId: null,
+          showMaskPreview: false,
+          showGrid: true,
+        },
+        layers: [
+          makeGradientLayer("Gradient (base)", "Pastel"),
+          makeGradientLayer("Gradient (accent)", "Sunset"),
+          makeNoiseLayer("Noise (subtle)"),
+        ],
+      };
+
+      let state = loadState() || structuredClone(DEFAULT_STATE);
+
+      /** ---------- DOM ---------- */
+      const el = {
+        layerList: document.getElementById("layerList"),
+        layerCount: document.getElementById("layerCount"),
+        preview: document.getElementById("preview"),
+        maskOverlay: document.getElementById("maskOverlay"),
+        toggleMaskPreview: document.getElementById("toggleMaskPreview"),
+        toggleGrid: document.getElementById("toggleGrid"),
+        previewGrid: document.getElementById("previewGrid"),
+        selectedLabel: document.getElementById("selectedLabel"),
+        saveBadge: document.getElementById("saveBadge"),
+
+        canvasRadius: document.getElementById("canvasRadius"),
+        canvasBg: document.getElementById("canvasBg"),
+
+        noSelection: document.getElementById("noSelection"),
+        editor: document.getElementById("editor"),
+        typeEditor: document.getElementById("typeEditor"),
+
+        layerName: document.getElementById("layerName"),
+        layerEnabled: document.getElementById("layerEnabled"),
+        blendMode: document.getElementById("blendMode"),
+        opacity: document.getElementById("opacity"),
+        blur: document.getElementById("blur"),
+        tx: document.getElementById("tx"),
+        ty: document.getElementById("ty"),
+        scale: document.getElementById("scale"),
+        rot: document.getElementById("rot"),
+
+        maskEnabled: document.getElementById("maskEnabled"),
+        maskType: document.getElementById("maskType"),
+        maskInvert: document.getElementById("maskInvert"),
+        maskAngle: document.getElementById("maskAngle"),
+        maskX: document.getElementById("maskX"),
+        maskY: document.getElementById("maskY"),
+        maskInner: document.getElementById("maskInner"),
+        maskOuter: document.getElementById("maskOuter"),
+        maskStripe: document.getElementById("maskStripe"),
+        maskGap: document.getElementById("maskGap"),
+
+        animType: document.getElementById("animType"),
+        animDuration: document.getElementById("animDuration"),
+        animEasing: document.getElementById("animEasing"),
+        animDelay: document.getElementById("animDelay"),
+
+        outHTML: document.getElementById("outHTML"),
+        outCSS: document.getElementById("outCSS"),
+
+        btnAddGradient: document.getElementById("btnAddGradient"),
+        btnAddPattern: document.getElementById("btnAddPattern"),
+        btnAddNoise: document.getElementById("btnAddNoise"),
+        btnAddVignette: document.getElementById("btnAddVignette"),
+        btnPresetMesh: document.getElementById("btnPresetMesh"),
+        btnPresetAurora: document.getElementById("btnPresetAurora"),
+
+        btnDuplicate: document.getElementById("btnDuplicate"),
+        btnDelete: document.getElementById("btnDelete"),
+
+        btnCopyHTML: document.getElementById("btnCopyHTML"),
+        btnCopyCSS: document.getElementById("btnCopyCSS"),
+        btnCopyBoth: document.getElementById("btnCopyBoth"),
+
+        btnJSON: document.getElementById("btnJSON"),
+        jsonModal: document.getElementById("jsonModal"),
+        jsonText: document.getElementById("jsonText"),
+        btnExportJSON: document.getElementById("btnExportJSON"),
+        btnImportJSON: document.getElementById("btnImportJSON"),
+        btnCloseJSON: document.getElementById("btnCloseJSON"),
+
+        btnClear: document.getElementById("btnClear"),
+      };
+
+      function getSelectedLayer() {
+        return (
+          state.layers.find((l) => l.id === state.ui.selectedLayerId) || null
+        );
+      }
+
+      function selectLayer(id) {
+        state.ui.selectedLayerId = id;
+        render();
+        scheduleSave();
+      }
+
+      function bumpSavedBadge() {
+        el.saveBadge.textContent = "Saved";
+        el.saveBadge.style.borderColor = "rgba(22,163,74,.35)";
+        el.saveBadge.style.color = "#166534";
+        window.setTimeout(() => {
+          el.saveBadge.textContent = "Autosaved";
+          el.saveBadge.style.borderColor = "";
+          el.saveBadge.style.color = "";
+        }, 900);
+      }
+
+      /** ---------- CSS builders ---------- */
+      function stopsToCss(stops) {
+        // e.g. "#ff0000 0%, #00ff00 50%, #0000ff 100%"
+        return (stops || [])
+          .slice()
+          .sort((a, b) => a.pos - b.pos)
+          .map((s) => `${s.color} ${s.pos}%`)
+          .join(", ");
+      }
+
+      function buildGradientCss(layer) {
+        const s = layer.settings;
+        const stops = stopsToCss(s.stops);
+        if (s.kind === "linear") {
+          return `linear-gradient(${Math.round(s.angle)}deg, ${stops})`;
+        }
+        if (s.kind === "radial") {
+          const shape = s.radialShape || "circle";
+          return `radial-gradient(${shape} at ${Math.round(s.x)}% ${Math.round(s.y)}%, ${stops})`;
+        }
+        // conic
+        return `conic-gradient(from ${Math.round(s.angle)}deg at ${Math.round(s.x)}% ${Math.round(s.y)}%, ${stops})`;
+      }
+
+      function buildPatternCss(layer) {
+        const s = layer.settings;
+        const fg = s.fg;
+        const bg = s.bg;
+        const size = clamp(s.size, 4, 200);
+        const t = clamp(s.thickness, 1, 16);
+        const ox = s.offsetX || 0;
+        const oy = s.offsetY || 0;
+
+        // Use background-position so drift animation does something visible.
+        const pos = `${ox}px ${oy}px`;
+
+        switch (s.pattern) {
+          case "dots":
+            // dotted via radial gradient
+            return {
+              image: `radial-gradient(${fg} ${t}px, transparent ${t + 1}px)`,
+              size: `${size}px ${size}px`,
+              position: pos,
+              color: bg,
+            };
+          case "grid":
+            return {
+              image: `linear-gradient(to right, ${fg} ${t}px, transparent ${t}px),
+           linear-gradient(to bottom, ${fg} ${t}px, transparent ${t}px)`,
+              size: `${size}px ${size}px`,
+              position: pos,
+              color: bg,
+            };
+          case "lines":
+            return {
+              image: `repeating-linear-gradient(90deg, ${fg} 0 ${t}px, transparent ${t}px ${size}px)`,
+              size: `auto`,
+              position: pos,
+              color: bg,
+            };
+          case "checker":
+            return {
+              image: `linear-gradient(45deg, ${fg} 25%, transparent 25%),
+           linear-gradient(-45deg, ${fg} 25%, transparent 25%),
+           linear-gradient(45deg, transparent 75%, ${fg} 75%),
+           linear-gradient(-45deg, transparent 75%, ${fg} 75%)`,
+              size: `${size}px ${size}px`,
+              position: pos,
+              color: bg,
+            };
+          case "stripes":
+            return {
+              image: `repeating-linear-gradient(135deg, ${fg} 0 ${t}px, transparent ${t}px ${size}px)`,
+              size: `auto`,
+              position: pos,
+              color: bg,
+            };
+          case "diagonal":
+            return {
+              image: `repeating-linear-gradient(45deg, ${fg} 0 ${t}px, transparent ${t}px ${size}px)`,
+              size: `auto`,
+              position: pos,
+              color: bg,
+            };
+          default:
+            return {
+              image: `radial-gradient(${fg} ${t}px, transparent ${t + 1}px)`,
+              size: `${size}px ${size}px`,
+              position: pos,
+              color: bg,
+            };
+        }
+      }
+
+      function buildNoiseCss(layer) {
+        // CSS-only "noise" approximation: layered micro-gradients (not true randomness).
+        const s = layer.settings;
+        const scale = clamp(s.scale, 3, 32);
+        // intensity is represented by opacity + blend; still keep an internal multiplier.
+        const a = clamp(s.intensity || 1, 0, 2);
+
+        // The idea: combine a few repeating-linear gradients at different angles,
+        // add a tiny radial to create grain-ish speckling.
+        const g1 = `repeating-linear-gradient(0deg, rgba(17,24,39,${0.1 * a}) 0 1px, transparent 1px ${scale}px)`;
+        const g2 = `repeating-linear-gradient(90deg, rgba(17,24,39,${0.08 * a}) 0 1px, transparent 1px ${Math.max(3, scale - 1)}px)`;
+        const g3 = `repeating-linear-gradient(45deg, rgba(17,24,39,${0.06 * a}) 0 1px, transparent 1px ${Math.max(3, scale)}px)`;
+        const g4 = `radial-gradient(circle at 20% 30%, rgba(17,24,39,${0.06 * a}) 0 1px, transparent 1px 6px)`;
+
+        return {
+          image: `${g1}, ${g2}, ${g3}, ${g4}`,
+          size: `auto`,
+          position: `0 0`,
+          color: `transparent`,
+        };
+      }
+
+      function buildVignetteCss(layer) {
+        const s = layer.settings;
+        const strength = clamp(s.strength, 0, 1);
+        const size = clamp(s.size, 20, 140);
+
+        // Transparent center, dark edges; strength controls edge alpha.
+        const edgeA = (0.75 * strength).toFixed(3);
+        return {
+          image: `radial-gradient(circle at 50% 50%, rgba(255,255,255,0) 0%, rgba(255,255,255,0) ${Math.round(size * 0.55)}%, rgba(17,24,39,${edgeA}) ${Math.round(size)}%)`,
+          size: `auto`,
+          position: `0 0`,
+          color: `transparent`,
+        };
+      }
+
+      function buildMaskCss(mask) {
+        const m = mask;
+        const invert = !!m.invert;
+
+        // We use alpha in the mask; black/white isn’t relevant, only alpha.
+        const A = (a) => `rgba(0,0,0,${a})`;
+        const on = invert ? 0 : 1;
+        const off = invert ? 1 : 0;
+
+        if (m.type === "radial") {
+          const inner = clamp(m.inner, 0, 100);
+          const outer = clamp(m.outer, 0, 140);
+          return `radial-gradient(circle at ${Math.round(m.x)}% ${Math.round(m.y)}%, ${A(on)} 0%, ${A(on)} ${inner}%, ${A(off)} ${outer}%)`;
+        }
+        if (m.type === "linear") {
+          const inner = clamp(m.inner, 0, 100);
+          const outer = clamp(m.outer, 0, 140);
+          // inner = fully on until inner, then fade to off by outer
+          return `linear-gradient(${Math.round(m.angle)}deg, ${A(on)} 0%, ${A(on)} ${inner}%, ${A(off)} ${outer}%)`;
+        }
+        // stripes
+        const stripe = clamp(m.stripe, 1, 200);
+        const gap = clamp(m.gap, 0, 200);
+        const period = stripe + gap;
+        return `repeating-linear-gradient(${Math.round(m.angle)}deg, ${A(on)} 0 ${stripe}px, ${A(off)} ${stripe}px ${period}px)`;
+      }
+
+      function buildLayerBackground(layer) {
+        if (layer.type === "gradient") {
+          return {
+            image: buildGradientCss(layer),
+            size: "cover",
+            position: "50% 50%",
+            color: "transparent",
+          };
+        }
+        if (layer.type === "pattern") {
+          return buildPatternCss(layer);
+        }
+        if (layer.type === "noise") {
+          return buildNoiseCss(layer);
+        }
+        if (layer.type === "vignette") {
+          return buildVignetteCss(layer);
+        }
+        return {
+          image: "none",
+          size: "auto",
+          position: "0 0",
+          color: "transparent",
+        };
+      }
+
+      function buildLayerInlineStyle(layer) {
+        const bg = buildLayerBackground(layer);
+        const t = layer.transform;
+
+        const style = {
+          display: layer.enabled ? "block" : "none",
+          opacity: String(clamp(layer.opacity, 0, 1)),
+          mixBlendMode: layer.blendMode,
+          filter: `blur(${Math.round(layer.blur)}px)`,
+          transform: `translate(${t.x}%, ${t.y}%) scale(${t.scale}) rotate(${t.rotate}deg)`,
+          backgroundColor: bg.color,
+          backgroundImage: bg.image,
+          backgroundSize: bg.size,
+          backgroundPosition: bg.position,
+          backgroundRepeat: "repeat",
+        };
+
+        // Mask
+        if (layer.mask?.enabled) {
+          const maskImg = buildMaskCss(layer.mask);
+          style.maskImage = maskImg;
+          style.webkitMaskImage = maskImg;
+          style.maskRepeat = "no-repeat";
+          style.webkitMaskRepeat = "no-repeat";
+          style.maskSize = "cover";
+          style.webkitMaskSize = "cover";
+        }
+
+        // Anim
+        const a = layer.animation;
+        const anim = buildAnimInline(layer);
+        if (anim) {
+          style.animation = anim;
+        } else {
+          style.animation = "none";
+        }
+
+        // For drift, we want visible movement across textures.
+        if (a.type === "drift") {
+          style.backgroundSize =
+            layer.type === "gradient" ? "200% 200%" : style.backgroundSize;
+        }
+
+        return style;
+      }
+
+      function buildAnimInline(layer) {
+        const a = layer.animation;
+        if (!a || a.type === "none") return "";
+        const dur = clamp(a.duration, 1, 120);
+        const ease = a.easing || "linear";
+        const delay = clamp(a.delay || 0, 0, 60);
+        // animation-name is generated in export; for preview we use a global keyframes set with data-idx based name.
+        const name = `bgfx_preview_${layer.id.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+        ensurePreviewKeyframes(layer, name);
+        return `${name} ${dur}s ${ease} ${delay}s infinite alternate`;
+      }
+
+      function ensurePreviewKeyframes(layer, name) {
+        // Inject/update a <style id="previewKF"> with keyframes for current layers
+        let style = document.getElementById("previewKF");
+        if (!style) {
+          style = document.createElement("style");
+          style.id = "previewKF";
+          document.head.appendChild(style);
+        }
+
+        // We'll rebuild all preview keyframes each render (simple + safe).
+        const blocks = state.layers
+          .map((l) => {
+            const nm = `bgfx_preview_${l.id.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+            return keyframesForLayer(l, nm);
+          })
+          .filter(Boolean)
+          .join("\n\n");
+
+        style.textContent = blocks;
+      }
+
+      function keyframesForLayer(layer, name) {
+        const a = layer.animation;
+        if (!a || a.type === "none") return "";
+        if (a.type === "drift") {
+          return `@keyframes ${name}{
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}`;
+        }
+        if (a.type === "hue") {
+          return `@keyframes ${name}{
+  0% { filter: blur(${Math.round(layer.blur)}px) hue-rotate(0deg); }
+  100% { filter: blur(${Math.round(layer.blur)}px) hue-rotate(360deg); }
+}`;
+        }
+        if (a.type === "pulse") {
+          const lo = clamp(layer.opacity * 0.6, 0, 1).toFixed(3);
+          const hi = clamp(layer.opacity, 0, 1).toFixed(3);
+          return `@keyframes ${name}{
+  0% { opacity: ${lo}; }
+  100% { opacity: ${hi}; }
+}`;
+        }
+        return "";
+      }
+
+      /** ---------- Render ---------- */
+      function render() {
+        // Canvas controls
+        el.canvasRadius.value = state.canvas.radius;
+        el.canvasBg.value = state.canvas.bg;
+        el.preview.style.borderRadius = `${state.canvas.radius}px`;
+        el.preview.style.background = state.canvas.bg;
+
+        el.toggleMaskPreview.checked = !!state.ui.showMaskPreview;
+        el.toggleGrid.checked = !!state.ui.showGrid;
+        el.previewGrid.style.display = state.ui.showGrid ? "block" : "none";
+
+        // Layers list
+        el.layerList.innerHTML = "";
+        el.layerCount.textContent = `${state.layers.length} layer${state.layers.length === 1 ? "" : "s"}`;
+
+        state.layers.forEach((layer, idx) => {
+          const item = document.createElement("div");
+          item.className =
+            "layer-item" +
+            (layer.id === state.ui.selectedLayerId ? " active" : "");
+          item.addEventListener("click", () => selectLayer(layer.id));
+
+          const chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.checked = !!layer.enabled;
+          chk.addEventListener("click", (e) => e.stopPropagation());
+          chk.addEventListener("change", () => {
+            layer.enabled = chk.checked;
+            scheduleSave();
+            render();
+          });
+
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.innerHTML = `
+      <div class="top">
+        <div class="name">${escapeHtml(layer.name)}</div>
+        <div class="type">${layer.type}</div>
+      </div>
+      <div class="mini">
+        <span class="pill">#${idx + 1}</span>
+        <span class="pill">${layer.blendMode}</span>
+        <span class="pill">${Math.round(layer.opacity * 100)}%</span>
+        ${layer.mask?.enabled ? `<span class="pill">mask</span>` : ``}
+        ${layer.animation?.type && layer.animation.type !== "none" ? `<span class="pill">anim</span>` : ``}
+      </div>
+    `;
+
+          const ops = document.createElement("div");
+          ops.style.display = "flex";
+          ops.style.flexDirection = "column";
+          ops.style.gap = "6px";
+
+          const up = iconBtn(
+            "↑",
+            "Move up",
+            () => moveLayer(layer.id, -1),
+            "primary",
+          );
+          const dn = iconBtn(
+            "↓",
+            "Move down",
+            () => moveLayer(layer.id, +1),
+            "primary",
+          );
+
+          item.appendChild(chk);
+          item.appendChild(meta);
+          ops.appendChild(up);
+          ops.appendChild(dn);
+          item.appendChild(ops);
+
+          el.layerList.appendChild(item);
+        });
+
+        // Preview layers
+        // Remove old layer nodes
+        [...el.preview.querySelectorAll(".layer")].forEach((n) => n.remove());
+
+        // Add in order (bottom to top)
+        state.layers.forEach((layer) => {
+          const div = document.createElement("div");
+          div.className = "layer";
+          div.dataset.layerId = layer.id;
+          applyStyle(div, buildLayerInlineStyle(layer));
+          el.preview.appendChild(div);
+        });
+
+        // Mask overlay for selected layer (so user understands it)
+        const sel = getSelectedLayer();
+        if (state.ui.showMaskPreview && sel?.mask?.enabled) {
+          const maskImg = buildMaskCss(sel.mask);
+          el.maskOverlay.classList.add("on");
+          el.maskOverlay.style.backgroundImage = maskImg;
+          el.maskOverlay.style.backgroundSize = "cover";
+          el.maskOverlay.style.backgroundRepeat = "no-repeat";
+          el.maskOverlay.style.backgroundPosition = "50% 50%";
+        } else {
+          el.maskOverlay.classList.remove("on");
+          el.maskOverlay.style.backgroundImage = "none";
+        }
+
+        // Editor
+        if (!sel) {
+          el.noSelection.style.display = "block";
+          el.editor.style.display = "none";
+          el.selectedLabel.textContent = "No layer selected";
+        } else {
+          el.noSelection.style.display = "none";
+          el.editor.style.display = "block";
+          el.selectedLabel.textContent = `Selected: ${sel.name} (${sel.type})`;
+
+          // Common fields
+          el.layerName.value = sel.name;
+          el.layerEnabled.checked = !!sel.enabled;
+          el.blendMode.value = sel.blendMode;
+          el.opacity.value = sel.opacity;
+          el.blur.value = sel.blur;
+
+          el.tx.value = sel.transform.x;
+          el.ty.value = sel.transform.y;
+          el.scale.value = sel.transform.scale;
+          el.rot.value = sel.transform.rotate;
+
+          // Mask
+          el.maskEnabled.checked = !!sel.mask.enabled;
+          el.maskType.value = sel.mask.type;
+          el.maskInvert.value = String(!!sel.mask.invert);
+          el.maskAngle.value = sel.mask.angle;
+          el.maskX.value = sel.mask.x;
+          el.maskY.value = sel.mask.y;
+          el.maskInner.value = sel.mask.inner;
+          el.maskOuter.value = sel.mask.outer;
+          el.maskStripe.value = sel.mask.stripe;
+          el.maskGap.value = sel.mask.gap;
+
+          // Animation
+          el.animType.value = sel.animation.type;
+          el.animDuration.value = sel.animation.duration;
+          el.animEasing.value = sel.animation.easing;
+          el.animDelay.value = sel.animation.delay;
+
+          // Type-specific
+          renderTypeEditor(sel);
+        }
+
+        // Export
+        const exp = buildExport(state);
+        el.outHTML.textContent = exp.html;
+        el.outCSS.textContent = exp.css;
+      }
+
+      /** ---------- Type editor rendering ---------- */
+      function renderTypeEditor(layer) {
+        const root = el.typeEditor;
+        root.innerHTML = "";
+
+        if (layer.type === "gradient") {
+          root.appendChild(renderGradientEditor(layer));
+        } else if (layer.type === "pattern") {
+          root.appendChild(renderPatternEditor(layer));
+        } else if (layer.type === "noise") {
+          root.appendChild(renderNoiseEditor(layer));
+        } else if (layer.type === "vignette") {
+          root.appendChild(renderVignetteEditor(layer));
+        } else {
+          const p = document.createElement("div");
+          p.className = "muted";
+          p.textContent = "No editor for this layer type.";
+          root.appendChild(p);
+        }
+      }
+
+      function renderGradientEditor(layer) {
+        const wrap = document.createElement("div");
+        wrap.className = "stack";
+
+        const s = layer.settings;
+
+        const header = document.createElement("div");
+        header.className = "row";
+        header.style.justifyContent = "space-between";
+        header.innerHTML = `<strong style="font-size:13px;">Gradient</strong>`;
+        wrap.appendChild(header);
+
+        // kind + angle + radial shape + position
+        const row1 = document.createElement("div");
+        row1.className = "row";
+
+        row1.appendChild(
+          fieldSelect(
+            "Kind",
+            s.kind,
+            [
+              ["linear", "Linear"],
+              ["radial", "Radial"],
+              ["conic", "Conic"],
+            ],
+            (v) => {
+              s.kind = v;
+              scheduleSave();
+              render();
+            },
+          ),
+        );
+
+        row1.appendChild(
+          fieldRange("Angle (deg)", s.angle, 0, 360, 1, (v) => {
+            s.angle = v;
+            scheduleSave();
+            render();
+          }),
+        );
+
+        row1.appendChild(
+          fieldSelect(
+            "Radial shape",
+            s.radialShape || "circle",
+            [
+              ["circle", "circle"],
+              ["ellipse", "ellipse"],
+            ],
+            (v) => {
+              s.radialShape = v;
+              scheduleSave();
+              render();
+            },
+          ),
+        );
+
+        wrap.appendChild(row1);
+
+        const row2 = document.createElement("div");
+        row2.className = "row";
+        row2.appendChild(
+          fieldRange("Center X (%)", s.x, -20, 120, 1, (v) => {
+            s.x = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        row2.appendChild(
+          fieldRange("Center Y (%)", s.y, -20, 120, 1, (v) => {
+            s.y = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        wrap.appendChild(row2);
+
+        // palette + paste
+        const row3 = document.createElement("div");
+        row3.className = "row";
+
+        const palField = document.createElement("div");
+        palField.className = "field";
+        palField.style.minWidth = "240px";
+        const palLabel = document.createElement("label");
+        palLabel.textContent = "Palette";
+        const palSel = document.createElement("select");
+        PALETTES.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.name;
+          opt.textContent = p.name;
+          palSel.appendChild(opt);
+        });
+        palSel.value = s.paletteName || PALETTES[0].name;
+        palSel.addEventListener("change", () => {
+          s.paletteName = palSel.value;
+          const pal = PALETTES.find((p) => p.name === s.paletteName);
+          if (pal) {
+            s.stops = toStops(pal.colors.slice(0, 5));
+          }
+          scheduleSave();
+          render();
+        });
+        palField.appendChild(palLabel);
+        palField.appendChild(palSel);
+
+        row3.appendChild(palField);
+
+        const pasteField = document.createElement("div");
+        pasteField.className = "field";
+        pasteField.style.flex = "1";
+        pasteField.style.minWidth = "260px";
+        const pasteLabel = document.createElement("label");
+        pasteLabel.textContent = "Paste colors (auto-detect hex in any text)";
+        const ta = document.createElement("textarea");
+        ta.placeholder =
+          'Examples:\n#FF00FF #00FFAA #112233\nor: linear-gradient(#f00, #0f0)\nor: ["#abc", "#def"]';
+        ta.value = s.pastedColors || "";
+        ta.addEventListener("input", () => {
+          s.pastedColors = ta.value;
+          // live parse + update stops if we have >=2 colors
+          const cols = parseColorsFromText(ta.value);
+          if (cols.length >= 2) {
+            s.stops = toStops(cols.slice(0, 8));
+          }
+          scheduleSave();
+          render();
+        });
+        pasteField.appendChild(pasteLabel);
+        pasteField.appendChild(ta);
+
+        row3.appendChild(pasteField);
+        wrap.appendChild(row3);
+
+        // stops editor
+        const stopsWrap = document.createElement("div");
+        stopsWrap.className = "stack";
+        const stopsHdr = document.createElement("div");
+        stopsHdr.className = "row";
+        stopsHdr.style.justifyContent = "space-between";
+        stopsHdr.innerHTML = `<strong style="font-size:13px;">Stops</strong>`;
+        const addBtn = document.createElement("button");
+        addBtn.className = "btn small";
+        addBtn.textContent = "+ Stop";
+        addBtn.addEventListener("click", () => {
+          s.stops.push({ color: "#FFFFFF", pos: 50 });
+          scheduleSave();
+          render();
+        });
+        stopsHdr.appendChild(addBtn);
+        stopsWrap.appendChild(stopsHdr);
+
+        const stops = document.createElement("div");
+        stops.className = "stops";
+
+        (s.stops || []).forEach((stop, i) => {
+          const row = document.createElement("div");
+          row.className = "stop";
+
+          const c = document.createElement("input");
+          c.type = "color";
+          c.value = normalizeHex(stop.color) || "#FFFFFF";
+          c.addEventListener("input", () => {
+            stop.color = c.value.toUpperCase();
+            scheduleSave();
+            render();
+          });
+
+          const r = document.createElement("input");
+          r.type = "range";
+          r.min = "0";
+          r.max = "100";
+          r.step = "1";
+          r.value = String(clamp(stop.pos, 0, 100));
+          r.addEventListener("input", () => {
+            stop.pos = Number(r.value);
+            scheduleSave();
+            render();
+          });
+
+          const n = document.createElement("input");
+          n.type = "number";
+          n.min = "0";
+          n.max = "100";
+          n.step = "1";
+          n.value = String(clamp(stop.pos, 0, 100));
+          n.addEventListener("input", () => {
+            stop.pos = Number(n.value);
+            scheduleSave();
+            render();
+          });
+
+          const x = document.createElement("button");
+          x.className = "xbtn";
+          x.textContent = "×";
+          x.title = "Remove stop";
+          x.addEventListener("click", () => {
+            if (s.stops.length <= 2) return; // keep at least 2
+            s.stops.splice(i, 1);
+            scheduleSave();
+            render();
+          });
+
+          row.appendChild(c);
+          row.appendChild(r);
+          row.appendChild(n);
+          row.appendChild(x);
+
+          stops.appendChild(row);
+        });
+
+        const stopsHint = document.createElement("div");
+        stopsHint.className = "muted";
+        stopsHint.textContent = "Stops are sorted by position when exported.";
+
+        stopsWrap.appendChild(stops);
+        stopsWrap.appendChild(stopsHint);
+        wrap.appendChild(stopsWrap);
+
+        return wrap;
+      }
+
+      function renderPatternEditor(layer) {
+        const wrap = document.createElement("div");
+        wrap.className = "stack";
+        const s = layer.settings;
+
+        const header = document.createElement("div");
+        header.className = "row";
+        header.style.justifyContent = "space-between";
+        header.innerHTML = `<strong style="font-size:13px;">Pattern</strong>`;
+        wrap.appendChild(header);
+
+        const row1 = document.createElement("div");
+        row1.className = "row";
+        row1.appendChild(
+          fieldSelect(
+            "Type",
+            s.pattern,
+            [
+              ["dots", "Dots"],
+              ["grid", "Grid"],
+              ["lines", "Lines"],
+              ["checker", "Checker"],
+              ["stripes", "Stripes"],
+              ["diagonal", "Diagonal"],
+            ],
+            (v) => {
+              s.pattern = v;
+              scheduleSave();
+              render();
+            },
+          ),
+        );
+
+        row1.appendChild(
+          fieldColor("Foreground", s.fg, (v) => {
+            s.fg = v.toUpperCase();
+            scheduleSave();
+            render();
+          }),
+        );
+        row1.appendChild(
+          fieldColor("Background", s.bg, (v) => {
+            s.bg = v.toUpperCase();
+            scheduleSave();
+            render();
+          }),
+        );
+        wrap.appendChild(row1);
+
+        const row2 = document.createElement("div");
+        row2.className = "row";
+        row2.appendChild(
+          fieldRange("Size (px)", s.size, 4, 120, 1, (v) => {
+            s.size = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        row2.appendChild(
+          fieldRange("Thickness (px)", s.thickness, 1, 16, 1, (v) => {
+            s.thickness = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        row2.appendChild(
+          fieldRange("Offset X (px)", s.offsetX || 0, -100, 100, 1, (v) => {
+            s.offsetX = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        row2.appendChild(
+          fieldRange("Offset Y (px)", s.offsetY || 0, -100, 100, 1, (v) => {
+            s.offsetY = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        wrap.appendChild(row2);
+
+        const hint = document.createElement("div");
+        hint.className = "muted";
+        hint.textContent = "Patterns export as CSS-only repeating gradients.";
+        wrap.appendChild(hint);
+
+        return wrap;
+      }
+
+      function renderNoiseEditor(layer) {
+        const wrap = document.createElement("div");
+        wrap.className = "stack";
+        const s = layer.settings;
+
+        const header = document.createElement("div");
+        header.className = "row";
+        header.style.justifyContent = "space-between";
+        header.innerHTML = `<strong style="font-size:13px;">Noise (CSS-only)</strong>`;
+        wrap.appendChild(header);
+
+        const row1 = document.createElement("div");
+        row1.className = "row";
+        row1.appendChild(
+          fieldRange("Scale (px)", s.scale, 3, 32, 1, (v) => {
+            s.scale = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        row1.appendChild(
+          fieldRange("Intensity", s.intensity, 0, 2, 0.05, (v) => {
+            s.intensity = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        wrap.appendChild(row1);
+
+        const hint = document.createElement("div");
+        hint.className = "muted";
+        hint.textContent =
+          "This is an approximation (not true randomness). Best combined with overlay/soft-light.";
+        wrap.appendChild(hint);
+
+        return wrap;
+      }
+
+      function renderVignetteEditor(layer) {
+        const wrap = document.createElement("div");
+        wrap.className = "stack";
+        const s = layer.settings;
+
+        const header = document.createElement("div");
+        header.className = "row";
+        header.style.justifyContent = "space-between";
+        header.innerHTML = `<strong style="font-size:13px;">Vignette</strong>`;
+        wrap.appendChild(header);
+
+        const row1 = document.createElement("div");
+        row1.className = "row";
+        row1.appendChild(
+          fieldRange("Strength", s.strength, 0, 1, 0.01, (v) => {
+            s.strength = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        row1.appendChild(
+          fieldRange("Size (%)", s.size, 20, 140, 1, (v) => {
+            s.size = v;
+            scheduleSave();
+            render();
+          }),
+        );
+        wrap.appendChild(row1);
+
+        const hint = document.createElement("div");
+        hint.className = "muted";
+        hint.textContent =
+          "Vignette is a radial gradient layer; tweak blend mode + opacity to taste.";
+        wrap.appendChild(hint);
+
+        return wrap;
+      }
+
+      /** ---------- Small UI field helpers ---------- */
+      function fieldSelect(label, value, options, onChange) {
+        const f = document.createElement("div");
+        f.className = "field";
+        const l = document.createElement("label");
+        l.textContent = label;
+        const s = document.createElement("select");
+        options.forEach(([val, txt]) => {
+          const o = document.createElement("option");
+          o.value = val;
+          o.textContent = txt;
+          s.appendChild(o);
+        });
+        s.value = value;
+        s.addEventListener("change", () => onChange(s.value));
+        f.appendChild(l);
+        f.appendChild(s);
+        return f;
+      }
+
+      function fieldRange(label, value, min, max, step, onInput) {
+        const f = document.createElement("div");
+        f.className = "field";
+        const l = document.createElement("label");
+        l.textContent = label;
+        const r = document.createElement("input");
+        r.type = "range";
+        r.min = String(min);
+        r.max = String(max);
+        r.step = String(step);
+        r.value = String(value);
+        r.addEventListener("input", () => onInput(Number(r.value)));
+        f.appendChild(l);
+        f.appendChild(r);
+        return f;
+      }
+
+      function fieldColor(label, value, onInput) {
+        const f = document.createElement("div");
+        f.className = "field";
+        const l = document.createElement("label");
+        l.textContent = label;
+        const c = document.createElement("input");
+        c.type = "color";
+        c.value = normalizeHex(value) || "#FFFFFF";
+        c.addEventListener("input", () => onInput(c.value));
+        f.appendChild(l);
+        f.appendChild(c);
+        return f;
+      }
+
+      function iconBtn(text, title, onClick, kind) {
+        const b = document.createElement("button");
+        b.className = "iconbtn" + (kind ? ` ${kind}` : "");
+        b.textContent = text;
+        b.title = title;
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onClick();
+        });
+        return b;
+      }
+
+      function applyStyle(node, styleObj) {
+        for (const [k, v] of Object.entries(styleObj)) {
+          node.style[k] = v;
+        }
+      }
+
+      function escapeHtml(s) {
+        return (s || "").replace(
+          /[&<>"']/g,
+          (m) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[m],
+        );
+      }
+
+      function normalizeHex(c) {
+        if (!c) return null;
+        const m = String(c)
+          .trim()
+          .match(/^#([0-9a-fA-F]{6})$/);
+        if (m) return `#${m[1].toUpperCase()}`;
+        const m3 = String(c)
+          .trim()
+          .match(/^#([0-9a-fA-F]{3})$/);
+        if (m3) {
+          const [r, g, b] = m3[1].split("");
+          return `#${(r + r + g + g + b + b).toUpperCase()}`;
+        }
+        // If we get a #RRGGBBAA, drop alpha for color input
+        const m8 = String(c)
+          .trim()
+          .match(/^#([0-9a-fA-F]{8})$/);
+        if (m8) return `#${m8[1].slice(0, 6).toUpperCase()}`;
+        return null;
+      }
+
+      /** ---------- Mutations ---------- */
+      function moveLayer(id, dir) {
+        const i = state.layers.findIndex((l) => l.id === id);
+        if (i < 0) return;
+        const j = i + dir;
+        if (j < 0 || j >= state.layers.length) return;
+        const tmp = state.layers[i];
+        state.layers[i] = state.layers[j];
+        state.layers[j] = tmp;
+        scheduleSave();
+        render();
+      }
+
+      function addLayer(layer) {
+        state.layers.push(layer);
+        state.ui.selectedLayerId = layer.id;
+        scheduleSave();
+        render();
+      }
+
+      function deleteSelected() {
+        const sel = getSelectedLayer();
+        if (!sel) return;
+        const idx = state.layers.findIndex((l) => l.id === sel.id);
+        if (idx >= 0) state.layers.splice(idx, 1);
+        state.ui.selectedLayerId = state.layers.at(-1)?.id || null;
+        scheduleSave();
+        render();
+      }
+
+      function duplicateSelected() {
+        const sel = getSelectedLayer();
+        if (!sel) return;
+        const idx = state.layers.findIndex((l) => l.id === sel.id);
+        const copy = structuredClone(sel);
+        copy.id = uid();
+        copy.name = sel.name + " (copy)";
+        state.layers.splice(idx + 1, 0, copy);
+        state.ui.selectedLayerId = copy.id;
+        scheduleSave();
+        render();
+      }
+
+      /** ---------- Export ---------- */
+      function buildExport(st) {
+        const layers = st.layers;
+        const htmlLines = [];
+        htmlLines.push(`<div class="bgfx">`);
+        layers.forEach((_, i) => {
+          htmlLines.push(`  <div class="bgfx__layer bgfx__layer--${i}"></div>`);
+        });
+        htmlLines.push(`</div>`);
+
+        // Keyframes (export)
+        const kfs = [];
+        const layerCss = [];
+
+        layerCss.push(`.bgfx{
+  position: relative;
+  width: 100%;
+  height: 460px; /* adjust */
+  border-radius: ${Math.round(st.canvas.radius)}px;
+  overflow: hidden;
+  background: ${st.canvas.bg};
+}`);
+
+        layerCss.push(`.bgfx__layer{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}`);
+
+        layers.forEach((layer, i) => {
+          const bg = buildLayerBackground(layer);
+          const t = layer.transform;
+          const a = layer.animation;
+
+          const rules = [];
+          rules.push(`.bgfx__layer--${i}{`);
+          rules.push(`  display: ${layer.enabled ? "block" : "none"};`);
+          rules.push(`  opacity: ${clamp(layer.opacity, 0, 1).toFixed(3)};`);
+          rules.push(`  mix-blend-mode: ${layer.blendMode};`);
+          rules.push(
+            `  transform: translate(${t.x}%, ${t.y}%) scale(${t.scale}) rotate(${t.rotate}deg);`,
+          );
+
+          // filters:
+          if (a?.type === "hue") {
+            // hue animation keyframes include blur already, but set a base filter anyway
+            rules.push(
+              `  filter: blur(${Math.round(layer.blur)}px) hue-rotate(0deg);`,
+            );
+          } else {
+            rules.push(`  filter: blur(${Math.round(layer.blur)}px);`);
+          }
+
+          // background
+          rules.push(`  background-color: ${bg.color};`);
+          rules.push(`  background-image: ${bg.image};`);
+          rules.push(`  background-repeat: repeat;`);
+          // drift benefits from larger gradients
+          if (a?.type === "drift" && layer.type === "gradient") {
+            rules.push(`  background-size: 200% 200%;`);
+          } else {
+            rules.push(`  background-size: ${bg.size};`);
+          }
+          rules.push(`  background-position: ${bg.position};`);
+
+          // Mask
+          if (layer.mask?.enabled) {
+            const maskImg = buildMaskCss(layer.mask);
+            rules.push(`  -webkit-mask-image: ${maskImg};`);
+            rules.push(`  mask-image: ${maskImg};`);
+            rules.push(`  -webkit-mask-repeat: no-repeat;`);
+            rules.push(`  mask-repeat: no-repeat;`);
+            rules.push(`  -webkit-mask-size: cover;`);
+            rules.push(`  mask-size: cover;`);
+          }
+
+          // Animation
+          if (a && a.type !== "none") {
+            const kfName = `bgfx_${i}_${a.type}`;
+            const dur = clamp(a.duration, 1, 120);
+            const ease = a.easing || "linear";
+            const delay = clamp(a.delay || 0, 0, 60);
+            const kf = exportKeyframes(layer, kfName);
+            if (kf) kfs.push(kf);
+            rules.push(
+              `  animation: ${kfName} ${dur}s ${ease} ${delay}s infinite alternate;`,
+            );
+          }
+
+          rules.push(`}`);
+          layerCss.push(rules.join("\n"));
+        });
+
+        const css = [
+          `/* BGFX Export */`,
+          layerCss.join("\n\n"),
+          kfs.length ? `\n/* Keyframes */\n${kfs.join("\n\n")}` : "",
+        ].join("\n");
+
+        return { html: htmlLines.join("\n"), css };
+      }
+
+      function exportKeyframes(layer, name) {
+        const a = layer.animation;
+        if (!a || a.type === "none") return "";
+
+        if (a.type === "drift") {
+          return `@keyframes ${name}{
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}`;
+        }
+
+        if (a.type === "hue") {
+          return `@keyframes ${name}{
+  0% { filter: blur(${Math.round(layer.blur)}px) hue-rotate(0deg); }
+  100% { filter: blur(${Math.round(layer.blur)}px) hue-rotate(360deg); }
+}`;
+        }
+
+        if (a.type === "pulse") {
+          const lo = clamp(layer.opacity * 0.6, 0, 1).toFixed(3);
+          const hi = clamp(layer.opacity, 0, 1).toFixed(3);
+          return `@keyframes ${name}{
+  0% { opacity: ${lo}; }
+  100% { opacity: ${hi}; }
+}`;
+        }
+
+        return "";
+      }
+
+      /** ---------- Persistence ---------- */
+      let saveTimer = null;
+
+      function scheduleSave() {
+        if (saveTimer) window.clearTimeout(saveTimer);
+        saveTimer = window.setTimeout(() => {
+          saveState();
+          bumpSavedBadge();
+        }, 250);
+      }
+
+      function saveState() {
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify(state));
+        } catch (e) {
+          console.warn("LocalStorage save failed", e);
+        }
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(LS_KEY);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (!parsed || parsed.version !== 1) return null;
+          return parsed;
+        } catch (e) {
+          console.warn("LocalStorage load failed", e);
+          return null;
+        }
+      }
+
+      /** ---------- Wire up events ---------- */
+      function bind() {
+        // Canvas
+        el.canvasRadius.addEventListener("input", () => {
+          state.canvas.radius = Number(el.canvasRadius.value);
+          scheduleSave();
+          render();
+        });
+
+        el.canvasBg.addEventListener("input", () => {
+          state.canvas.bg = el.canvasBg.value.toUpperCase();
+          scheduleSave();
+          render();
+        });
+
+        el.toggleMaskPreview.addEventListener("change", () => {
+          state.ui.showMaskPreview = el.toggleMaskPreview.checked;
+          scheduleSave();
+          render();
+        });
+
+        el.toggleGrid.addEventListener("change", () => {
+          state.ui.showGrid = el.toggleGrid.checked;
+          scheduleSave();
+          render();
+        });
+
+        // Common layer editor
+        el.layerName.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.name = el.layerName.value;
+          scheduleSave();
+          render();
+        });
+
+        el.layerEnabled.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.enabled = el.layerEnabled.checked;
+          scheduleSave();
+          render();
+        });
+
+        el.blendMode.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.blendMode = el.blendMode.value;
+          scheduleSave();
+          render();
+        });
+
+        el.opacity.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.opacity = Number(el.opacity.value);
+          scheduleSave();
+          render();
+        });
+
+        el.blur.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.blur = Number(el.blur.value);
+          scheduleSave();
+          render();
+        });
+
+        el.tx.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.transform.x = Number(el.tx.value);
+          scheduleSave();
+          render();
+        });
+        el.ty.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.transform.y = Number(el.ty.value);
+          scheduleSave();
+          render();
+        });
+        el.scale.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.transform.scale = Number(el.scale.value);
+          scheduleSave();
+          render();
+        });
+        el.rot.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.transform.rotate = Number(el.rot.value);
+          scheduleSave();
+          render();
+        });
+
+        // Mask
+        el.maskEnabled.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.enabled = el.maskEnabled.checked;
+          scheduleSave();
+          render();
+        });
+
+        el.maskType.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.type = el.maskType.value;
+          scheduleSave();
+          render();
+        });
+
+        el.maskInvert.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.invert = el.maskInvert.value === "true";
+          scheduleSave();
+          render();
+        });
+
+        el.maskAngle.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.angle = Number(el.maskAngle.value);
+          scheduleSave();
+          render();
+        });
+
+        el.maskX.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.x = Number(el.maskX.value);
+          scheduleSave();
+          render();
+        });
+
+        el.maskY.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.y = Number(el.maskY.value);
+          scheduleSave();
+          render();
+        });
+
+        el.maskInner.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.inner = Number(el.maskInner.value);
+          scheduleSave();
+          render();
+        });
+
+        el.maskOuter.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.outer = Number(el.maskOuter.value);
+          scheduleSave();
+          render();
+        });
+
+        el.maskStripe.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.stripe = Number(el.maskStripe.value);
+          scheduleSave();
+          render();
+        });
+
+        el.maskGap.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.mask.gap = Number(el.maskGap.value);
+          scheduleSave();
+          render();
+        });
+
+        // Animation
+        el.animType.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.animation.type = el.animType.value;
+          scheduleSave();
+          render();
+        });
+
+        el.animDuration.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.animation.duration = Number(el.animDuration.value);
+          scheduleSave();
+          render();
+        });
+
+        el.animEasing.addEventListener("change", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.animation.easing = el.animEasing.value;
+          scheduleSave();
+          render();
+        });
+
+        el.animDelay.addEventListener("input", () => {
+          const sel = getSelectedLayer();
+          if (!sel) return;
+          sel.animation.delay = Number(el.animDelay.value);
+          scheduleSave();
+          render();
+        });
+
+        // Add layer buttons
+        el.btnAddGradient.addEventListener("click", () =>
+          addLayer(makeGradientLayer("Gradient", "Pastel")),
+        );
+        el.btnAddPattern.addEventListener("click", () =>
+          addLayer(makePatternLayer("Pattern")),
+        );
+        el.btnAddNoise.addEventListener("click", () =>
+          addLayer(makeNoiseLayer("Noise")),
+        );
+        el.btnAddVignette.addEventListener("click", () =>
+          addLayer(makeVignetteLayer("Vignette")),
+        );
+
+        // Presets
+        el.btnPresetMesh.addEventListener("click", () => addMeshPreset());
+        el.btnPresetAurora.addEventListener("click", () => addAuroraPreset());
+
+        // Duplicate/delete
+        el.btnDuplicate.addEventListener("click", () => duplicateSelected());
+        el.btnDelete.addEventListener("click", () => deleteSelected());
+
+        // Copy
+        el.btnCopyHTML.addEventListener("click", async () => {
+          await copyToClipboard(el.outHTML.textContent);
+          flashButton(el.btnCopyHTML, "Copied!");
+        });
+        el.btnCopyCSS.addEventListener("click", async () => {
+          await copyToClipboard(el.outCSS.textContent);
+          flashButton(el.btnCopyCSS, "Copied!");
+        });
+        el.btnCopyBoth.addEventListener("click", async () => {
+          const both =
+            el.outHTML.textContent +
+            "\n\n<style>\n" +
+            el.outCSS.textContent +
+            "\n</style>\n";
+          await copyToClipboard(both);
+          flashButton(el.btnCopyBoth, "Copied!");
+        });
+
+        // JSON modal
+        el.btnJSON.addEventListener("click", () => openJSONModal());
+        el.btnCloseJSON.addEventListener("click", () => closeJSONModal());
+        el.jsonModal.addEventListener("click", (e) => {
+          if (e.target === el.jsonModal) closeJSONModal();
+        });
+
+        el.btnExportJSON.addEventListener("click", () => {
+          el.jsonText.value = JSON.stringify(state, null, 2);
+        });
+
+        el.btnImportJSON.addEventListener("click", () => {
+          const res = safeJsonParse(el.jsonText.value);
+          if (!res.ok) {
+            alert("Invalid JSON: " + res.error.message);
+            return;
+          }
+          const next = res.value;
+          if (!next || next.version !== 1 || !Array.isArray(next.layers)) {
+            alert(
+              "JSON shape mismatch (expected version:1 with layers array).",
+            );
+            return;
+          }
+          state = next;
+          if (!state.ui)
+            state.ui = {
+              selectedLayerId: null,
+              showMaskPreview: false,
+              showGrid: true,
+            };
+          if (!state.canvas) state.canvas = { radius: 18, bg: "#FFFFFF" };
+          // ensure selected
+          if (!state.ui.selectedLayerId && state.layers[0])
+            state.ui.selectedLayerId = state.layers[0].id;
+          saveState();
+          bumpSavedBadge();
+          closeJSONModal();
+          render();
+        });
+
+        // Clear
+        el.btnClear.addEventListener("click", () => {
+          if (!confirm("Clear LocalStorage and reset to defaults?")) return;
+          try {
+            localStorage.removeItem(LS_KEY);
+          } catch (e) {}
+          state = structuredClone(DEFAULT_STATE);
+          state.ui.selectedLayerId = state.layers[0]?.id || null;
+          saveState();
+          bumpSavedBadge();
+          render();
+        });
+      }
+
+      function flashButton(btn, text) {
+        const old = btn.textContent;
+        btn.textContent = text;
+        window.setTimeout(() => (btn.textContent = old), 700);
+      }
+
+      function openJSONModal() {
+        el.jsonModal.classList.add("on");
+        el.jsonText.value = JSON.stringify(state, null, 2);
+      }
+
+      function closeJSONModal() {
+        el.jsonModal.classList.remove("on");
+      }
+
+      /** ---------- Presets ---------- */
+      function addMeshPreset() {
+        // Mesh-like approximation: multiple radial gradients with different centers + blend
+        const pal = PALETTES.find((p) => p.name === "Pastel") || PALETTES[0];
+        const colors = pal.colors;
+
+        const mk = (name, color, x, y, op) => {
+          const layer = makeGradientLayer(name, "Pastel");
+          layer.settings.kind = "radial";
+          layer.settings.radialShape = "circle";
+          layer.settings.x = x;
+          layer.settings.y = y;
+          layer.settings.stops = [
+            { color, pos: 0 },
+            { color: "#FFFFFF00", pos: 70 }, // transparent end
+          ];
+          layer.opacity = op;
+          layer.blendMode = "screen";
+          layer.blur = 18;
+          return layer;
+        };
+
+        addLayer(mk("Mesh blob A", colors[0], 25, 25, 0.9));
+        addLayer(mk("Mesh blob B", colors[1], 75, 30, 0.75));
+        addLayer(mk("Mesh blob C", colors[2], 55, 80, 0.65));
+        addLayer(mk("Mesh blob D", colors[3], 15, 75, 0.55));
+      }
+
+      function addAuroraPreset() {
+        // Aurora-ish: conic + a couple radials, blur + soft-light
+        const base = makeGradientLayer("Aurora conic", "Ocean");
+        base.settings.kind = "conic";
+        base.settings.angle = 210;
+        base.settings.x = 50;
+        base.settings.y = 50;
+        base.opacity = 0.95;
+        base.blendMode = "soft-light";
+        base.blur = 22;
+        base.animation = {
+          type: "drift",
+          duration: 18,
+          easing: "ease-in-out",
+          delay: 0,
+        };
+
+        const glowA = makeGradientLayer("Aurora glow A", "Ocean");
+        glowA.settings.kind = "radial";
+        glowA.settings.x = 30;
+        glowA.settings.y = 35;
+        glowA.settings.stops = [
+          { color: "#22C55E", pos: 0 },
+          { color: "#22C55E00", pos: 72 },
+        ];
+        glowA.opacity = 0.7;
+        glowA.blendMode = "screen";
+        glowA.blur = 26;
+
+        const glowB = makeGradientLayer("Aurora glow B", "Ocean");
+        glowB.settings.kind = "radial";
+        glowB.settings.x = 70;
+        glowB.settings.y = 65;
+        glowB.settings.stops = [
+          { color: "#0EA5E9", pos: 0 },
+          { color: "#0EA5E900", pos: 74 },
+        ];
+        glowB.opacity = 0.65;
+        glowB.blendMode = "screen";
+        glowB.blur = 28;
+
+        addLayer(base);
+        addLayer(glowA);
+        addLayer(glowB);
+      }
+
+      /** ---------- Boot ---------- */
+      function boot() {
+        // ensure selection
+        if (!state.ui?.selectedLayerId) {
+          state.ui = state.ui || {
+            selectedLayerId: null,
+            showMaskPreview: false,
+            showGrid: true,
+          };
+          state.ui.selectedLayerId = state.layers[0]?.id || null;
+        }
+        if (!state.canvas) state.canvas = { radius: 18, bg: "#FFFFFF" };
+
+        bind();
+        render();
+        saveState();
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
