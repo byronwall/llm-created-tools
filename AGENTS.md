@@ -26,7 +26,7 @@ Minimal template (serve over HTTP so module imports work):
           <h2>Demo</h2>
           <div class="row">
             <span class="badge" id="status">Idle</span>
-            <button class="btn is-primary" id="run">Run</button>
+            <button class="btn primary" id="run">Run</button>
           </div>
         </div>
         <div class="card-b">
@@ -178,24 +178,24 @@ Scoped override pattern (only inside a container):
 ### Buttons
 
 - `.btn` base button
-- Variants (either naming style works):
-  - Primary: `.btn.primary` or `.btn.is-primary`
-  - Danger: `.btn.danger` or `.btn.is-danger`
-  - OK: `.btn.ok` or `.btn.is-ok`
-  - Small: `.btn.small` or `.btn.is-small`
+- Variants:
+  - Primary: `.btn.primary`
+  - Danger: `.btn.danger`
+  - OK: `.btn.ok`
+  - Small: `.btn.small`
 
 Expected usage:
 
 ```html
-<button class="btn is-primary">Save</button>
-<button class="btn is-danger is-small">Delete</button>
+<button class="btn primary">Save</button>
+<button class="btn danger small">Delete</button>
 ```
 
 ### Badges / pills
 
 - `.badge`
   - Small status tag.
-  - State: `.badge.is-saved`.
+  - State: `.badge.saved`.
 - `.pill`
   - Small, subtle chip.
 
@@ -216,7 +216,7 @@ Expected usage:
 ### Modal
 
 - `.modal` (overlay; hidden by default)
-- `.modal.on` or `.modal.is-open` (show)
+- `.modal.on` (show)
 - `.modal .sheet`, `.sheet-h`, `.sheet-b` (modal panel structure)
 
 ### Checkbox row
@@ -228,7 +228,7 @@ Expected usage:
 
 Prefer these over inline styles:
 
-- Visibility: `.is-hidden`
+- Visibility: `.hidden`
 - Spacing: `.mt-10`, `.mt-18`
 - Min width: `.minw-160`, `.minw-220`, `.minw-240`, `.minw-260`
 - Flex: `.flex-1`

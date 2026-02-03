@@ -76,7 +76,7 @@ body {
   color: var(--muted);
 }
 
-.badge.is-saved {
+.badge.saved {
   border-color: var(--ok-35);
   color: var(--ok-ink);
 }
@@ -119,29 +119,25 @@ textarea {
   transform: translateY(1px);
 }
 
-.btn.primary,
-.btn.is-primary {
+.btn.primary {
   border-color: var(--brand-25);
   background: linear-gradient(180deg, var(--panel), var(--tint-brand));
   color: var(--brand2);
 }
 
-.btn.danger,
-.btn.is-danger {
+.btn.danger {
   border-color: var(--danger-25);
   background: linear-gradient(180deg, var(--panel), var(--tint-danger));
   color: var(--danger-ink);
 }
 
-.btn.ok,
-.btn.is-ok {
+.btn.ok {
   border-color: var(--ok-25);
   background: linear-gradient(180deg, var(--panel), var(--tint-ok));
   color: var(--ok-ink);
 }
 
-.btn.small,
-.btn.is-small {
+.btn.small {
   padding: 6px 8px;
   border-radius: 9px;
   font-size: 12px;
@@ -308,10 +304,6 @@ textarea {
   display: flex;
 }
 
-.modal.is-open {
-  display: flex;
-}
-
 .modal .sheet {
   width: min(920px, 100%);
   background: var(--panel);
@@ -367,7 +359,7 @@ textarea {
 }
 
 /* --- utilities to replace inline styles --- */
-.is-hidden {
+.hidden {
   display: none !important;
 }
 
