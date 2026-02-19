@@ -3,8 +3,8 @@
 # Usage: sh git-generate-rebase.sh [directory-path] [base-branch]
 # Example: sh git-generate-rebase.sh ./client main
 
-DIR=${1:-.}
-BASE=${2:-main}
+BASE=${1:-main}
+DIR=${2:-.}
 
 # 1. Navigate to directory safely
 if [ -d "$DIR" ]; then
