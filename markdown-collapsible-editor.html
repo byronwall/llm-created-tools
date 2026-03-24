@@ -54,45 +54,13 @@
       .app {
         min-height: 100vh;
         display: grid;
-        grid-template-rows: 56px minmax(0, 1fr);
-      }
-
-      .topbar {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        align-items: stretch;
-        border-bottom: 1px solid var(--line-strong);
-        background: rgba(246, 245, 240, 0.92);
-        backdrop-filter: blur(8px);
-      }
-
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 0 18px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-      }
-
-      .brand::before {
-        content: "";
-        width: 10px;
-        height: 10px;
-        background: var(--accent);
-      }
-
-      .topbar-actions {
-        display: flex;
-        align-items: stretch;
+        grid-template-rows: minmax(0, 1fr);
       }
 
       .workspace {
         min-height: 0;
         display: grid;
-        grid-template-columns: minmax(320px, 0.95fr) minmax(340px, 1.05fr);
+        grid-template-columns: minmax(300px, var(--left-pane, 48%)) 12px minmax(320px, 1fr);
       }
 
       .pane {
@@ -103,8 +71,43 @@
         background: rgba(246, 245, 240, 0.78);
       }
 
-      .pane + .pane {
-        border-left: 1px solid var(--line-strong);
+      .splitter {
+        position: relative;
+        min-width: 12px;
+        cursor: col-resize;
+        background: linear-gradient(180deg, transparent, rgba(18, 18, 18, 0.06), transparent);
+      }
+
+      .splitter::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: 1px;
+        margin: 0 auto;
+        background: var(--line-strong);
+      }
+
+      .splitter::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 4px;
+        height: 72px;
+        transform: translate(-50%, -50%);
+        background:
+          linear-gradient(
+            180deg,
+            var(--line-strong) 0 8px,
+            transparent 8px 16px,
+            var(--line-strong) 16px 24px,
+            transparent 24px 32px,
+            var(--line-strong) 32px 40px,
+            transparent 40px 48px,
+            var(--line-strong) 48px 56px,
+            transparent 56px 64px,
+            var(--line-strong) 64px 72px
+          );
       }
 
       .section-head {
@@ -157,6 +160,11 @@
         text-transform: uppercase;
       }
 
+      .btn.depth-btn {
+        min-width: 32px;
+        padding: 0;
+      }
+
       .token {
         display: inline-flex;
         align-items: center;
@@ -186,6 +194,31 @@
       .btn.primary:focus-visible {
         background: #8f1717;
         border-color: #8f1717;
+      }
+
+      .btn.emphasis {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--surface);
+      }
+
+      .btn.emphasis:hover,
+      .btn.emphasis:focus-visible {
+        background: #2b2b2b;
+        border-color: #2b2b2b;
+      }
+
+      .btn.outline-strong {
+        border-color: var(--ink);
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.55);
+      }
+
+      .btn.outline-strong:hover,
+      .btn.outline-strong:focus-visible {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        color: var(--accent);
       }
 
       .body-wrap {
@@ -263,8 +296,8 @@
       .summary-card,
       .leaf-card {
         display: grid;
-        grid-template-columns: 18px 1fr;
-        gap: 10px;
+        grid-template-columns: 28px 1fr;
+        gap: 6px;
         align-items: start;
         min-height: 32px;
         padding: 6px 8px;
@@ -279,10 +312,11 @@
       }
 
       .caret {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        justify-content: center;
-        width: 18px;
+        justify-content: flex-start;
+        gap: 4px;
+        width: 28px;
         height: 18px;
         margin-top: 1px;
         font-family: var(--mono);
@@ -290,8 +324,25 @@
         color: var(--accent);
       }
 
-      details.branch:not([open]) .caret {
+      .caret-glyph {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 12px;
+      }
+
+      .collapse-count {
+        display: none;
+        min-width: 16px;
+        color: var(--muted);
+      }
+
+      details.branch:not([open]) .caret-glyph {
         transform: rotate(-90deg);
+      }
+
+      details.branch:not([open]) .collapse-count {
+        display: inline-flex;
       }
 
       .leaf-card::before {
@@ -313,21 +364,36 @@
         white-space: pre-wrap;
       }
 
-      .node-meta {
-        margin-top: 4px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        font-family: var(--mono);
-        font-size: 11px;
-        color: var(--muted);
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
+      .node-line strong {
+        font-weight: 700;
+        letter-spacing: -0.01em;
       }
 
-      .meta-pill {
-        display: inline-flex;
-        align-items: center;
+      .node-line em {
+        font-style: italic;
+        color: #34312d;
+      }
+
+      .node-line mark {
+        padding: 0 3px;
+        background: rgba(198, 31, 31, 0.14);
+        color: var(--ink);
+        box-shadow: inset 0 -1px 0 rgba(198, 31, 31, 0.35);
+      }
+
+      .node-line code {
+        display: inline-block;
+        padding: 1px 5px;
+        border: 1px solid var(--line);
+        background: rgba(18, 18, 18, 0.04);
+        font-family: var(--mono);
+        font-size: 0.92em;
+        color: var(--accent);
+        vertical-align: baseline;
+      }
+
+      .node-meta {
+        display: none;
       }
 
       .status-strong {
@@ -337,11 +403,21 @@
       @media (max-width: 980px) {
         .workspace {
           grid-template-columns: 1fr;
-          grid-template-rows: minmax(280px, 0.95fr) minmax(280px, 1.05fr);
+          grid-template-rows: minmax(280px, 0.95fr) 0 minmax(280px, 1.05fr);
         }
 
-        .pane + .pane {
-          border-left: 0;
+        .splitter {
+          min-width: 0;
+          min-height: 0;
+          cursor: default;
+        }
+
+        .splitter::before,
+        .splitter::after {
+          display: none;
+        }
+
+        .pane:last-child {
           border-top: 1px solid var(--line-strong);
         }
       }
@@ -359,13 +435,6 @@
   </head>
   <body>
     <div class="app">
-      <header class="topbar">
-        <div class="brand">Outline MD</div>
-        <div class="topbar-actions">
-          <button class="btn primary" id="exportPage" type="button">Export</button>
-        </div>
-      </header>
-
       <main class="workspace">
         <section class="pane">
           <div class="section-head">
@@ -375,13 +444,15 @@
             </div>
             <div class="meta-row">
               <span class="token" id="lineSummary">0 items</span>
-              <span class="token" id="editorStatus">Ready</span>
+              <button class="btn primary" id="exportPage" type="button">Export HTML</button>
             </div>
           </div>
           <div class="body-wrap">
             <div id="editor" class="editor" contenteditable="true" spellcheck="false" aria-label="Markdown editor"></div>
           </div>
         </section>
+
+        <div class="splitter" id="splitter" aria-hidden="true"></div>
 
         <section class="pane">
           <div class="section-head">
@@ -390,10 +461,11 @@
               <h2 class="section-title">Outline</h2>
             </div>
             <div class="tool-row">
-              <span class="token" id="branchSummary">0 branches</span>
-              <span class="token" id="depthSummary">Depth 0</span>
-              <button class="btn" id="expandAll" type="button">Expand</button>
-              <button class="btn" id="collapseAll" type="button">Collapse</button>
+              <button class="btn depth-btn" id="expandDepth1" type="button">1</button>
+              <button class="btn depth-btn" id="expandDepth2" type="button">2</button>
+              <button class="btn depth-btn" id="expandDepth3" type="button">3</button>
+              <button class="btn emphasis" id="expandAll" type="button">Expand</button>
+              <button class="btn outline-strong" id="collapseAll" type="button">Collapse</button>
             </div>
           </div>
           <div class="body-wrap">
@@ -425,13 +497,15 @@
         const MARKDOWN_SEED_ID = "embedded-markdown";
         const editor = document.querySelector("#editor");
         const preview = document.querySelector("#preview");
-        const editorStatus = document.querySelector("#editorStatus");
         const lineSummary = document.querySelector("#lineSummary");
-        const branchSummary = document.querySelector("#branchSummary");
-        const depthSummary = document.querySelector("#depthSummary");
         const exportButton = document.querySelector("#exportPage");
         const expandAllButton = document.querySelector("#expandAll");
         const collapseAllButton = document.querySelector("#collapseAll");
+        const expandDepthButtons = [1, 2, 3].map((depth) => document.querySelector(`#expandDepth${depth}`));
+        const splitter = document.querySelector("#splitter");
+        const workspace = document.querySelector(".workspace");
+        const MIN_LEFT_PX = 280;
+        const MIN_RIGHT_PX = 320;
 
         function debounce(fn, delay) {
           let timer = 0;
@@ -530,23 +604,81 @@
           return { itemCount, branchCount, maxDepth };
         }
 
+        function countDescendants(node) {
+          let total = 0;
+          for (const child of node.children) {
+            total += 1 + countDescendants(child);
+          }
+          return total;
+        }
+
+        function findInlineToken(text) {
+          const patterns = [
+            { type: "code", regex: /`([^`]+)`/ },
+            { type: "mark", regex: /==([^=]+)==/ },
+            { type: "strong", regex: /\*\*([^*]+)\*\*/ },
+            { type: "strong", regex: /__([^_]+)__/ },
+            { type: "em", regex: /\*([^*\n]+)\*/ },
+            { type: "em", regex: /_([^_\n]+)_/ },
+          ];
+
+          let bestMatch = null;
+
+          for (const pattern of patterns) {
+            const match = pattern.regex.exec(text);
+            if (!match) {
+              continue;
+            }
+
+            if (!bestMatch || match.index < bestMatch.index) {
+              bestMatch = {
+                type: pattern.type,
+                index: match.index,
+                full: match[0],
+                inner: match[1],
+              };
+            }
+          }
+
+          return bestMatch;
+        }
+
+        function appendInlineMarkdown(target, text) {
+          const match = findInlineToken(text);
+
+          if (!match) {
+            target.append(document.createTextNode(text));
+            return;
+          }
+
+          if (match.index > 0) {
+            target.append(document.createTextNode(text.slice(0, match.index)));
+          }
+
+          if (match.type === "code") {
+            const code = document.createElement("code");
+            code.textContent = match.inner;
+            target.append(code);
+          } else {
+            const element = document.createElement(match.type === "strong" ? "strong" : match.type === "em" ? "em" : "mark");
+            appendInlineMarkdown(element, match.inner);
+            target.append(element);
+          }
+
+          appendInlineMarkdown(target, text.slice(match.index + match.full.length));
+        }
+
         function createNodeLabel(node) {
           const wrap = document.createElement("div");
           wrap.className = "node-main";
 
           const line = document.createElement("p");
           line.className = "node-line";
-          line.textContent = node.text;
+          appendInlineMarkdown(line, node.text);
           wrap.append(line);
 
           if (node.children.length) {
-            const meta = document.createElement("div");
-            meta.className = "node-meta";
-            const childCount = document.createElement("span");
-            childCount.className = "meta-pill";
-            childCount.textContent = `${node.children.length} child${node.children.length === 1 ? "" : "ren"}`;
-            meta.append(childCount);
-            wrap.append(meta);
+            wrap.dataset.childCount = String(countDescendants(node));
           }
 
           return wrap;
@@ -566,7 +698,7 @@
           preview.append(buildList(nodes));
         }
 
-        function buildList(nodes) {
+        function buildList(nodes, depth = 1) {
           const list = document.createElement("ul");
           list.className = "tree";
 
@@ -578,6 +710,7 @@
               const details = document.createElement("details");
               details.className = "branch";
               details.open = true;
+              details.dataset.depth = String(depth);
 
               const summary = document.createElement("summary");
               const card = document.createElement("div");
@@ -585,11 +718,18 @@
 
               const caret = document.createElement("span");
               caret.className = "caret";
-              caret.textContent = "▾";
+              const caretGlyph = document.createElement("span");
+              caretGlyph.className = "caret-glyph";
+              caretGlyph.textContent = "▾";
 
+              const collapseCount = document.createElement("span");
+              collapseCount.className = "collapse-count";
+              collapseCount.textContent = String(countDescendants(node));
+
+              caret.append(caretGlyph, collapseCount);
               card.append(caret, createNodeLabel(node));
               summary.append(card);
-              details.append(summary, buildList(node.children));
+              details.append(summary, buildList(node.children, depth + 1));
               item.append(details);
             } else {
               const leaf = document.createElement("div");
@@ -607,14 +747,10 @@
         function updateStats(nodes) {
           const stats = getTreeStats(nodes);
           lineSummary.textContent = `${stats.itemCount} item${stats.itemCount === 1 ? "" : "s"}`;
-          branchSummary.textContent = `${stats.branchCount} branch${stats.branchCount === 1 ? "" : "es"}`;
-          depthSummary.textContent = `Depth ${stats.maxDepth}`;
         }
 
         function setStatus(text, isError) {
-          editorStatus.textContent = text;
-          editorStatus.classList.toggle("status-strong", !isError);
-          editorStatus.style.color = isError ? "var(--danger)" : "";
+          lineSummary.style.color = isError ? "var(--danger)" : "var(--muted)";
         }
 
         function renderFromEditor() {
@@ -658,6 +794,52 @@
             node.open = false;
           });
         });
+
+        function expandToDepth(maxDepth) {
+          preview.querySelectorAll("details.branch").forEach((node) => {
+            const depth = Number(node.dataset.depth || "1");
+            node.open = depth <= maxDepth;
+          });
+        }
+
+        expandDepthButtons.forEach((button, index) => {
+          button.addEventListener("click", () => {
+            expandToDepth(index + 1);
+          });
+        });
+
+        function clampPaneWidth(clientX) {
+          const rect = workspace.getBoundingClientRect();
+          const maxLeft = rect.width - MIN_RIGHT_PX - 12;
+          const leftWidth = Math.min(Math.max(clientX - rect.left, MIN_LEFT_PX), maxLeft);
+          return `${leftWidth}px`;
+        }
+
+        function setPaneWidth(value) {
+          workspace.style.setProperty("--left-pane", value);
+        }
+
+        function handleSplitStart(event) {
+          if (window.innerWidth <= 980) {
+            return;
+          }
+
+          event.preventDefault();
+
+          const move = (nextEvent) => {
+            setPaneWidth(clampPaneWidth(nextEvent.clientX));
+          };
+
+          const stop = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", stop);
+          };
+
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", stop);
+        }
+
+        splitter.addEventListener("pointerdown", handleSplitStart);
 
         function escapeForScriptData(value) {
           return value.replace(/<\/script/gi, "<\\/script");
