@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Markdown Collapsible Editor</title>
+    <link
+      rel="icon"
+      href='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect width="64" height="64" fill="%230f1111"/%3E%3Cpath d="M14 18h36v5H14zm0 12h36v5H14zm0 12h22v5H14z" fill="%23f3f3ef"/%3E%3C/svg%3E'
+    />
+    <style>
+      :root {
+        --bg: #e9e7e1;
+        --surface: #f6f5f0;
+        --surface-2: #efede7;
+        --surface-3: #e5e2db;
+        --ink: #121212;
+        --muted: #66645e;
+        --line: #c8c4bc;
+        --line-strong: #9f9a91;
+        --accent: #c61f1f;
+        --accent-soft: rgba(198, 31, 31, 0.08);
+        --danger: #a51d1d;
+        --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        --mono: "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          linear-gradient(90deg, rgba(18, 18, 18, 0.03) 1px, transparent 1px),
+          linear-gradient(rgba(18, 18, 18, 0.03) 1px, transparent 1px),
+          var(--bg);
+        background-size: 32px 32px, 32px 32px, auto;
+        color: var(--ink);
+        font-family: var(--sans);
+      }
+
+      body {
+        min-height: 100vh;
+      }
+
+      button,
+      [contenteditable="true"] {
+        font: inherit;
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: 56px minmax(0, 1fr);
+      }
+
+      .topbar {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: stretch;
+        border-bottom: 1px solid var(--line-strong);
+        background: rgba(246, 245, 240, 0.92);
+        backdrop-filter: blur(8px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 18px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .brand::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        background: var(--accent);
+      }
+
+      .topbar-actions {
+        display: flex;
+        align-items: stretch;
+      }
+
+      .workspace {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(320px, 0.95fr) minmax(340px, 1.05fr);
+      }
+
+      .pane {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        background: rgba(246, 245, 240, 0.78);
+      }
+
+      .pane + .pane {
+        border-left: 1px solid var(--line-strong);
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 64px;
+        padding: 10px 14px 10px 18px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(239, 237, 231, 0.84);
+      }
+
+      .section-label {
+        display: block;
+        margin: 0 0 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .meta-row,
+      .tool-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .token,
+      .btn {
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: 0;
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .token {
+        display: inline-flex;
+        align-items: center;
+        color: var(--muted);
+      }
+
+      .btn {
+        cursor: pointer;
+        transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+      }
+
+      .btn:hover,
+      .btn:focus-visible {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--surface);
+        outline: none;
+      }
+
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .btn.primary:hover,
+      .btn.primary:focus-visible {
+        background: #8f1717;
+        border-color: #8f1717;
+      }
+
+      .body-wrap {
+        min-height: 0;
+        padding: 0;
+      }
+
+      .editor,
+      .preview {
+        height: 100%;
+        min-height: 0;
+        overflow: auto;
+        background: transparent;
+      }
+
+      .editor {
+        padding: 16px 18px 20px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        outline: none;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.5;
+        tab-size: 2;
+      }
+
+      .editor:focus-visible {
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .preview {
+        padding: 12px 14px 24px;
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 120px;
+        border: 1px dashed var(--line-strong);
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .tree,
+      .tree ul {
+        margin: 0;
+        padding-left: 18px;
+        list-style: none;
+      }
+
+      .tree {
+        padding-left: 0;
+      }
+
+      .tree ul {
+        margin-top: 2px;
+        border-left: 1px solid var(--line);
+      }
+
+      .tree-item {
+        position: relative;
+      }
+
+      details.branch > summary {
+        list-style: none;
+        cursor: pointer;
+      }
+
+      details.branch > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .summary-card,
+      .leaf-card {
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 10px;
+        align-items: start;
+        min-height: 32px;
+        padding: 6px 8px;
+        border-top: 1px solid transparent;
+        border-bottom: 1px solid var(--surface-3);
+      }
+
+      .summary-card:hover,
+      .leaf-card:hover,
+      details.branch > summary:focus-visible .summary-card {
+        background: rgba(255, 255, 255, 0.45);
+      }
+
+      .caret {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        margin-top: 1px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent);
+      }
+
+      details.branch:not([open]) .caret {
+        transform: rotate(-90deg);
+      }
+
+      .leaf-card::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        margin: 7px 0 0 6px;
+        background: var(--ink);
+      }
+
+      .node-main {
+        min-width: 0;
+      }
+
+      .node-line {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+      }
+
+      .node-meta {
+        margin-top: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .meta-pill {
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .status-strong {
+        color: var(--ink);
+      }
+
+      @media (max-width: 980px) {
+        .workspace {
+          grid-template-columns: 1fr;
+          grid-template-rows: minmax(280px, 0.95fr) minmax(280px, 1.05fr);
+        }
+
+        .pane + .pane {
+          border-left: 0;
+          border-top: 1px solid var(--line-strong);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">Outline MD</div>
+        <div class="topbar-actions">
+          <button class="btn primary" id="exportPage" type="button">Export</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="pane">
+          <div class="section-head">
+            <div>
+              <span class="section-label">Markdown</span>
+              <h1 class="section-title">Editor</h1>
+            </div>
+            <div class="meta-row">
+              <span class="token" id="lineSummary">0 items</span>
+              <span class="token" id="editorStatus">Ready</span>
+            </div>
+          </div>
+          <div class="body-wrap">
+            <div id="editor" class="editor" contenteditable="true" spellcheck="false" aria-label="Markdown editor"></div>
+          </div>
+        </section>
+
+        <section class="pane">
+          <div class="section-head">
+            <div>
+              <span class="section-label">Nested List</span>
+              <h2 class="section-title">Outline</h2>
+            </div>
+            <div class="tool-row">
+              <span class="token" id="branchSummary">0 branches</span>
+              <span class="token" id="depthSummary">Depth 0</span>
+              <button class="btn" id="expandAll" type="button">Expand</button>
+              <button class="btn" id="collapseAll" type="button">Collapse</button>
+            </div>
+          </div>
+          <div class="body-wrap">
+            <div id="preview" class="preview" aria-live="polite"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script id="embedded-markdown" type="text/plain">- Release prep
+  - Product
+    - Final landing page copy
+    - Sign-off checklist
+      - Legal approval
+      - Accessibility pass
+  - Engineering
+    - Ship export mode
+    - Verify embedded markdown reloads
+    - Capture screenshots
+  - Marketing
+    - Newsletter draft
+    - Social snippets
+- Follow-ups
+  - Retro notes
+  - Archive assets</script>
+
+    <script>
+      (() => {
+        const MARKDOWN_SEED_ID = "embedded-markdown";
+        const editor = document.querySelector("#editor");
+        const preview = document.querySelector("#preview");
+        const editorStatus = document.querySelector("#editorStatus");
+        const lineSummary = document.querySelector("#lineSummary");
+        const branchSummary = document.querySelector("#branchSummary");
+        const depthSummary = document.querySelector("#depthSummary");
+        const exportButton = document.querySelector("#exportPage");
+        const expandAllButton = document.querySelector("#expandAll");
+        const collapseAllButton = document.querySelector("#collapseAll");
+
+        function debounce(fn, delay) {
+          let timer = 0;
+          return (...args) => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => fn(...args), delay);
+          };
+        }
+
+        function getSeedMarkdown() {
+          const seedNode = document.querySelector(`#${MARKDOWN_SEED_ID}`);
+          return seedNode ? seedNode.textContent.replace(/^\n/, "") : "";
+        }
+
+        function setEditorText(text) {
+          editor.textContent = text;
+        }
+
+        function getEditorText() {
+          return editor.innerText.replace(/\u00a0/g, " ").replace(/\r\n?/g, "\n").trimEnd();
+        }
+
+        function measureIndent(indent) {
+          let width = 0;
+          for (const char of indent) {
+            width += char === "\t" ? 2 : 1;
+          }
+          return Math.floor(width / 2);
+        }
+
+        function parseMarkdownList(markdown) {
+          const root = { children: [] };
+          const stack = [{ level: -1, node: root }];
+          const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+          let lastNode = null;
+
+          for (const rawLine of lines) {
+            const line = rawLine.replace(/\s+$/, "");
+
+            if (!line.trim()) {
+              continue;
+            }
+
+            const match = line.match(/^(\s*)([-+*]|\d+[.)])\s+(.*)$/);
+
+            if (!match) {
+              if (lastNode) {
+                lastNode.text += `\n${line.trim()}`;
+              }
+              continue;
+            }
+
+            const level = measureIndent(match[1]);
+            const marker = match[2];
+            const text = match[3].trim();
+            const node = {
+              text: text || "(empty item)",
+              marker,
+              children: [],
+            };
+
+            while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+              stack.pop();
+            }
+
+            stack[stack.length - 1].node.children.push(node);
+            stack.push({ level, node });
+            lastNode = node;
+          }
+
+          return root.children;
+        }
+
+        function getTreeStats(nodes) {
+          let itemCount = 0;
+          let branchCount = 0;
+          let maxDepth = 0;
+
+          function walk(items, depth) {
+            if (!items.length) {
+              return;
+            }
+
+            maxDepth = Math.max(maxDepth, depth);
+
+            for (const item of items) {
+              itemCount += 1;
+              if (item.children.length) {
+                branchCount += 1;
+                walk(item.children, depth + 1);
+              }
+            }
+          }
+
+          walk(nodes, 1);
+          return { itemCount, branchCount, maxDepth };
+        }
+
+        function createNodeLabel(node) {
+          const wrap = document.createElement("div");
+          wrap.className = "node-main";
+
+          const line = document.createElement("p");
+          line.className = "node-line";
+          line.textContent = node.text;
+          wrap.append(line);
+
+          if (node.children.length) {
+            const meta = document.createElement("div");
+            meta.className = "node-meta";
+            const childCount = document.createElement("span");
+            childCount.className = "meta-pill";
+            childCount.textContent = `${node.children.length} child${node.children.length === 1 ? "" : "ren"}`;
+            meta.append(childCount);
+            wrap.append(meta);
+          }
+
+          return wrap;
+        }
+
+        function renderTree(nodes) {
+          preview.replaceChildren();
+
+          if (!nodes.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty-state";
+            empty.textContent = "No list content";
+            preview.append(empty);
+            return;
+          }
+
+          preview.append(buildList(nodes));
+        }
+
+        function buildList(nodes) {
+          const list = document.createElement("ul");
+          list.className = "tree";
+
+          for (const node of nodes) {
+            const item = document.createElement("li");
+            item.className = "tree-item";
+
+            if (node.children.length) {
+              const details = document.createElement("details");
+              details.className = "branch";
+              details.open = true;
+
+              const summary = document.createElement("summary");
+              const card = document.createElement("div");
+              card.className = "summary-card";
+
+              const caret = document.createElement("span");
+              caret.className = "caret";
+              caret.textContent = "▾";
+
+              card.append(caret, createNodeLabel(node));
+              summary.append(card);
+              details.append(summary, buildList(node.children));
+              item.append(details);
+            } else {
+              const leaf = document.createElement("div");
+              leaf.className = "leaf-card";
+              leaf.append(createNodeLabel(node));
+              item.append(leaf);
+            }
+
+            list.append(item);
+          }
+
+          return list;
+        }
+
+        function updateStats(nodes) {
+          const stats = getTreeStats(nodes);
+          lineSummary.textContent = `${stats.itemCount} item${stats.itemCount === 1 ? "" : "s"}`;
+          branchSummary.textContent = `${stats.branchCount} branch${stats.branchCount === 1 ? "" : "es"}`;
+          depthSummary.textContent = `Depth ${stats.maxDepth}`;
+        }
+
+        function setStatus(text, isError) {
+          editorStatus.textContent = text;
+          editorStatus.classList.toggle("status-strong", !isError);
+          editorStatus.style.color = isError ? "var(--danger)" : "";
+        }
+
+        function renderFromEditor() {
+          try {
+            const markdown = getEditorText();
+            const nodes = parseMarkdownList(markdown);
+            renderTree(nodes);
+            updateStats(nodes);
+            setStatus(markdown.trim() ? "Synced" : "Empty", false);
+          } catch (error) {
+            preview.replaceChildren();
+            const empty = document.createElement("div");
+            empty.className = "empty-state";
+            empty.textContent = error instanceof Error ? error.message : "Could not render markdown";
+            preview.append(empty);
+            setStatus("Error", true);
+          }
+        }
+
+        const debouncedRender = debounce(renderFromEditor, 120);
+
+        editor.addEventListener("input", () => {
+          setStatus("Syncing", false);
+          debouncedRender();
+        });
+
+        editor.addEventListener("paste", (event) => {
+          event.preventDefault();
+          const text = event.clipboardData ? event.clipboardData.getData("text/plain") : "";
+          document.execCommand("insertText", false, text);
+        });
+
+        expandAllButton.addEventListener("click", () => {
+          preview.querySelectorAll("details.branch").forEach((node) => {
+            node.open = true;
+          });
+        });
+
+        collapseAllButton.addEventListener("click", () => {
+          preview.querySelectorAll("details.branch").forEach((node) => {
+            node.open = false;
+          });
+        });
+
+        function escapeForScriptData(value) {
+          return value.replace(/<\/script/gi, "<\\/script");
+        }
+
+        function buildExportHtml(markdown) {
+          const serialized = "<!doctype html>\n" + document.documentElement.outerHTML;
+          return serialized.replace(
+            /(<script id="embedded-markdown" type="text\/plain">)([\s\S]*?)(<\/script>)/,
+            `$1${escapeForScriptData(markdown)}$3`
+          );
+        }
+
+        function downloadExport(markdown) {
+          const blob = new Blob([buildExportHtml(markdown)], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+
+          link.href = url;
+          link.download = `markdown-collapsible-editor-${stamp}.html`;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        exportButton.addEventListener("click", () => {
+          const markdown = getEditorText();
+          downloadExport(markdown);
+          setStatus("Exported", false);
+        });
+
+        setEditorText(getSeedMarkdown());
+        renderFromEditor();
+      })();
+    </script>
+  </body>
+</html>
