@@ -1,10 +1,17 @@
 #!/bin/sh
 
-# Usage: sh git-generate-rebase.sh [directory-path] [base-branch]
-# Example: sh git-generate-rebase.sh ./client main
+# Usage: sh git-generate-rebase.sh [--do] [base-branch] [directory-path]
+# Example: sh git-generate-rebase.sh --do main .
+
+DO_REBASE=0
+if [ "$1" = "--do" ]; then
+    DO_REBASE=1
+    shift
+fi
 
 BASE=${1:-main}
 DIR=${2:-.}
+COMMIT_VERIFY_FLAG=${COMMIT_VERIFY_FLAG:---no-verify}
 
 # 1. Navigate to directory safely
 if [ -d "$DIR" ]; then
@@ -25,6 +32,11 @@ CURRENT=$(git rev-parse --abbrev-ref HEAD)
 # Use %s with printf to avoid errors if strings contain dashes
 printf "\n🔍 Analyzing branch '\033[1;36m%s\033[0m' against base '\033[1;36m%s\033[0m' in %s\n" "$CURRENT" "$BASE" "$DIR"
 printf "   (Identifying ghost files and building rebase plan...)\n"
+printf "   (Auto mode: drop ghost-only commits, split mixed commits, then rerun to drop ghost-split commits)\n"
+printf "   (Commit verification flag: %s)\n" "$COMMIT_VERIFY_FLAG"
+if [ "$DO_REBASE" -eq 1 ]; then
+    printf "   (Execution mode: --do, will auto-start interactive rebase with generated todo)\n"
+fi
 
 # ---------------------------------------------------------
 # PHASE 1: Identify Ghost Files
@@ -65,6 +77,34 @@ ghost_count=$(echo "$GHOST_FILES" | grep -c -v '^$')
 printf "👻 Identified \033[1;33m%d\033[0m ghost files.\n" "$ghost_count"
 printf "%s\n" "------------------------------------------------------------"
 
+# Return success (0) only when full commit hash exists as a full line in list.
+hash_in_list() {
+    list=$1
+    needle=$2
+    echo "$list" | grep -Fxq "$needle"
+}
+
+# Commits whose patch already exists in BASE (git cherry marks with '-')
+CHERRY_EQUIV_COMMITS=$(git cherry "$BASE" "$CURRENT" | awk '/^- / {print $2}')
+
+# Commits that duplicate an earlier commit's patch within BASE..CURRENT
+# (drop later duplicates to avoid empty cherry-pick stops)
+DUPLICATE_PATCH_COMMITS=$(
+    seen_patch_ids=""
+    git log --reverse --no-merges --format="%H" "$BASE..$CURRENT" | while IFS= read -r full_hash; do
+        patch_id=$(git show --pretty=format: "$full_hash" | git patch-id --stable 2>/dev/null | awk '{print $1}')
+        if [ -z "$patch_id" ]; then
+            continue
+        fi
+
+        if echo " $seen_patch_ids " | grep -Fq " $patch_id "; then
+            echo "$full_hash"
+        else
+            seen_patch_ids="$seen_patch_ids $patch_id"
+        fi
+    done
+)
+
 # ---------------------------------------------------------
 # PHASE 2: Generate Rebase Plan & Print Immediately
 # ---------------------------------------------------------
@@ -76,13 +116,12 @@ printf "%s\n" "============================================================"
 # Read commits Oldest -> Newest.
 # We use a pipe | which is standard sh, instead of process substitution <()
 # IFS='|' splits the hash and message.
-git log --reverse --no-merges --format="%h|%s" "$BASE..$CURRENT" | while IFS='|' read -r hash msg; do
+PLAN_OUTPUT=$(git log --reverse --no-merges --format="%H|%h|%s" "$BASE..$CURRENT" | while IFS='|' read -r full_hash hash msg; do
     
     # Get files changed in this specific commit
     commit_files=$(git show --name-only --pretty=format: "$hash")
     
-    files_to_reset=""
-    files_to_remove=""
+    files_ghost_all=""
     
     total_files_in_commit=0
     ghosts_in_commit=0
@@ -98,56 +137,71 @@ git log --reverse --no-merges --format="%h|%s" "$BASE..$CURRENT" | while IFS='|'
         # grep -F (fixed string) -x (whole line match) -q (quiet)
         if echo "$GHOST_FILES" | grep -Fxq "$f"; then
             ghosts_in_commit=$((ghosts_in_commit + 1))
-            
-            # Determine action
-            if git show "$BASE:$f" > /dev/null 2>&1; then
-                files_to_reset="$files_to_reset $f"
-            else
-                files_to_remove="$files_to_remove $f"
-            fi
+            files_ghost_all="$files_ghost_all $f"
         fi
     done
 
     # --- OUTPUT LOGIC ---
+
+    # Drop any split-out ghost commit created by an earlier run.
+    if echo "$msg" | grep -q '^ghost-split:'; then
+        echo "drop $hash $msg"
+        continue
+    fi
     
     if [ "$total_files_in_commit" -eq 0 ]; then
         # Empty commit (or merge artifact)
         echo "pick $hash $msg"
-        
-    elif [ "$total_files_in_commit" -eq "$ghosts_in_commit" ]; then
-        # ALL files are ghosts -> DROP
+
+    elif hash_in_list "$CHERRY_EQUIV_COMMITS" "$full_hash"; then
+        # Patch already exists on BASE; replay would be empty.
+        echo "drop $hash $msg"
+
+    elif hash_in_list "$DUPLICATE_PATCH_COMMITS" "$full_hash"; then
+        # Later duplicate patch in this branch; replay would be empty once earlier commit is applied.
         echo "drop $hash $msg"
         
+    elif [ "$ghosts_in_commit" -eq "$total_files_in_commit" ]; then
+        # Pure ghost commit: safe to drop entirely.
+        echo "drop $hash $msg"
+
     elif [ "$ghosts_in_commit" -gt 0 ]; then
-        # Mixed content -> PICK + EXEC
+        # Mixed commit: split ghost-file deltas into a dedicated follow-up commit.
+        # The next run will auto-drop this ghost-split commit.
         echo "pick $hash $msg"
-        
-        cmd=""
-        
-        # 1. Handle Resets
-        if [ -n "$files_to_reset" ]; then
-            # Normalize spaces
-            clean_reset=$(echo "$files_to_reset" | xargs)
-            cmd="git checkout $BASE -- $clean_reset"
-        fi
-        
-        # 2. Handle Removes
-        if [ -n "$files_to_remove" ]; then
-            clean_remove=$(echo "$files_to_remove" | xargs)
-            if [ -n "$cmd" ]; then cmd="$cmd && "; fi
-            cmd="${cmd}git rm -f $clean_remove"
-        fi
-        
-        # 3. Amend
-        cmd="${cmd} && git commit --amend --no-edit"
-        
-        echo "exec $cmd"
+
+        clean_ghost_all=$(echo "$files_ghost_all" | xargs)
+        echo "exec if git diff --name-only HEAD^ HEAD -- $clean_ghost_all | grep -q .; then git reset HEAD^ -- $clean_ghost_all && if git diff --quiet && git diff --cached --quiet; then true; else git commit $COMMIT_VERIFY_FLAG --amend --no-edit; fi && git add -A -- $clean_ghost_all && if git diff --cached --quiet; then true; else git commit $COMMIT_VERIFY_FLAG -m \"ghost-split: $hash\"; fi; else true; fi"
         
     else
         # Normal commit
         echo "pick $hash $msg"
     fi
 
-done
+done)
+
+printf "%s\n" "$PLAN_OUTPUT"
 
 printf "%s\n" "============================================================"
+
+if echo "$PLAN_OUTPUT" | grep -q 'ghost-split:'; then
+    printf "\n🔁 NOTE: This plan will create isolated ghost commits (ghost-split).\n"
+    printf "   After this rebase completes, run this script again and rebase again to drop them.\n"
+else
+    printf "\n✅ NOTE: No ghost-split commits planned. One rebase pass should be enough.\n"
+fi
+
+if [ "$DO_REBASE" -eq 1 ]; then
+    todo_dir="tmp"
+    mkdir -p "$todo_dir"
+
+    today=$(date +%Y%m%d)
+    todo_file="$todo_dir/${today}-git-generate-rebase-todo.txt"
+
+    printf "%s\n" "$PLAN_OUTPUT" > "$todo_file"
+
+    printf "\n🚀 Starting rebase using generated todo file: %s\n" "$todo_file"
+    printf "   (This rewrites history. Abort with: git rebase --abort)\n"
+
+    GIT_SEQUENCE_EDITOR="cp $todo_file" git rebase -i "$BASE"
+fi
